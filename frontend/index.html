@@ -538,9 +538,9 @@
 
 <!-- ── Tab bar ── -->
 <div id="tabBar">
-  <button class="tab-btn active" onclick="switchTab('scraper')">Product Scraper</button>
-  <button class="tab-btn" onclick="switchTab('instagram')">Instagram Handles</button>
-  <button class="tab-btn" onclick="switchTab('drive')">Google Drive Folders</button>
+  <button class="tab-btn active" data-tab="scraper"   onclick="switchTab('scraper')">Product Scraper</button>
+  <button class="tab-btn"        data-tab="drive"     onclick="switchTab('drive')">Google Drive Folders</button>
+  <button class="tab-btn"        data-tab="instagram" onclick="switchTab('instagram')">Instagram Handles</button>
 </div>
 
 <!-- ══════════ TAB: Product Scraper ══════════ -->
@@ -658,14 +658,15 @@
 
   // ── Tab switching ──
   function switchTab(name) {
-    document.querySelectorAll('.tab-btn').forEach((b, i) => {
-      b.classList.toggle('active',
-        (name === 'scraper'   && i === 0) ||
-        (name === 'drive'     && i === 1) ||
-        (name === 'instagram' && i === 2));
+    // Highlight the correct tab button using data-tab (never relies on order)
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === name);
     });
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.getElementById(`tab-${name}`).classList.add('active');
+
+    // Show the scraper header form only on the scraper tab
+    document.getElementById('form-scraper').style.display = name === 'scraper' ? 'flex' : 'none';
 
     activeTab = name;
     updateActionBar();
