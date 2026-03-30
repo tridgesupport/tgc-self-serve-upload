@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TGC Self-Serve Upload</title>
   <style>
-    /* ── Reset & base ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --bg: #f7f5f2;
@@ -31,7 +30,7 @@
     header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 18px 32px;
+      padding: 14px 32px;
       display: flex;
       align-items: center;
       gap: 12px;
@@ -41,7 +40,7 @@
       box-shadow: var(--shadow);
     }
     header h1 {
-      font-size: 1.15rem;
+      font-size: 1.1rem;
       font-weight: 700;
       color: var(--accent);
       letter-spacing: -.3px;
@@ -55,25 +54,25 @@
       flex-wrap: wrap;
     }
     .header-form input {
-      padding: 9px 13px;
+      padding: 8px 13px;
       border: 1px solid var(--border);
       border-radius: 7px;
-      font-size: .9rem;
+      font-size: .88rem;
       color: var(--text);
       background: var(--bg);
       outline: none;
       transition: border .15s;
     }
     .header-form input:focus { border-color: var(--accent); }
-    #urlInput  { flex: 2; min-width: 240px; }
-    #brandInput { flex: 1; min-width: 160px; }
+    #urlInput   { flex: 2; min-width: 220px; }
+    #brandInput { flex: 1; min-width: 150px; }
     .btn-primary {
-      padding: 9px 20px;
+      padding: 8px 18px;
       background: var(--accent);
       color: #fff;
       border: none;
       border-radius: 7px;
-      font-size: .9rem;
+      font-size: .88rem;
       font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
@@ -82,17 +81,55 @@
     .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
     .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 
+    /* ── Tab bar ── */
+    #tabBar {
+      background: var(--surface);
+      border-bottom: 2px solid var(--border);
+      padding: 0 32px;
+      display: flex;
+      gap: 0;
+    }
+    .tab-btn {
+      padding: 12px 22px;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      font-size: .88rem;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Tab panels ── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Placeholder panel ── */
+    .coming-soon {
+      text-align: center;
+      padding: 100px 20px;
+      color: var(--muted);
+    }
+    .coming-soon .icon { font-size: 3rem; margin-bottom: 14px; }
+    .coming-soon h2 { font-size: 1.4rem; color: var(--text); margin-bottom: 8px; }
+    .coming-soon p { font-size: .95rem; max-width: 340px; margin: 0 auto; line-height: 1.6; }
+
     /* ── Status banner ── */
     #statusBar {
       display: none;
-      padding: 12px 32px;
+      padding: 11px 32px;
       font-size: .88rem;
       font-weight: 500;
       gap: 10px;
       align-items: center;
     }
-    #statusBar.info  { background: #e8f4f0; color: #1b4332; display: flex; }
-    #statusBar.error { background: #fdecea; color: var(--danger); display: flex; }
+    #statusBar.info    { background: #e8f4f0; color: #1b4332; display: flex; }
+    #statusBar.error   { background: #fdecea; color: var(--danger); display: flex; }
     #statusBar.success { background: #e8f4f0; color: #1b4332; display: flex; }
     .spinner {
       width: 16px; height: 16px;
@@ -107,16 +144,16 @@
     /* ── Drive link bar ── */
     #driveLinkBar {
       display: none;
-      padding: 10px 32px;
+      padding: 9px 32px;
       background: #fff8e1;
       border-bottom: 1px solid #ffe082;
-      font-size: .85rem;
+      font-size: .84rem;
       color: #5a4000;
     }
     #driveLinkBar a { color: #2d6a4f; font-weight: 600; }
 
     /* ── Main content ── */
-    main { padding: 28px 32px 120px; max-width: 1400px; margin: 0 auto; }
+    main { padding: 24px 32px 120px; max-width: 1400px; margin: 0 auto; }
 
     #emptyState {
       text-align: center;
@@ -140,14 +177,13 @@
       border-color: var(--selected-ring);
       box-shadow: 0 0 0 2px rgba(45,106,79,.15), var(--shadow);
     }
-
     .card-body {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 0;
     }
 
-    /* ── Asset strip (left column) ── */
+    /* ── Asset strip ── */
     .asset-strip {
       display: flex;
       flex-wrap: wrap;
@@ -160,47 +196,56 @@
 
     .asset-thumb {
       position: relative;
-      width: 110px;
-      height: 110px;
+      width: 120px;
+      height: 160px;        /* 3:4 portrait ratio in the strip */
       border-radius: 6px;
       overflow: hidden;
-      cursor: pointer;
       border: 2px solid transparent;
       transition: border-color .15s, transform .1s;
       background: #eee;
       flex-shrink: 0;
     }
-    .asset-thumb:hover { transform: scale(1.03); }
     .asset-thumb.selected {
       border-color: var(--selected-ring);
       box-shadow: 0 0 0 3px rgba(45,106,79,.2);
     }
-    .asset-thumb img,
-    .asset-thumb video {
+
+    /* Media fills the thumb */
+    .asset-thumb .thumb-media {
       width: 100%; height: 100%;
       object-fit: cover;
       display: block;
-      pointer-events: none;
+      cursor: zoom-in;
     }
-    .asset-thumb .check-overlay {
+
+    /* Always-visible checkbox circle */
+    .asset-thumb .sel-btn {
       position: absolute;
-      top: 5px; right: 5px;
-      width: 20px; height: 20px;
-      background: var(--accent);
+      top: 6px; right: 6px;
+      width: 22px; height: 22px;
+      background: rgba(255,255,255,.85);
+      border: 2px solid rgba(200,200,200,.9);
       border-radius: 50%;
-      display: none;
+      display: flex;
       align-items: center;
       justify-content: center;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+      z-index: 2;
     }
-    .asset-thumb.selected .check-overlay { display: flex; }
-    .check-overlay svg { width: 11px; height: 11px; fill: #fff; }
+    .asset-thumb.selected .sel-btn {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .sel-btn svg { width: 10px; height: 10px; opacity: 0; transition: opacity .1s; }
+    .asset-thumb.selected .sel-btn svg { opacity: 1; }
 
     .asset-thumb .type-badge {
       position: absolute;
       bottom: 4px; left: 4px;
       background: rgba(0,0,0,.55);
       color: #fff;
-      font-size: .62rem;
+      font-size: .6rem;
       padding: 2px 5px;
       border-radius: 4px;
       text-transform: uppercase;
@@ -208,17 +253,16 @@
       pointer-events: none;
     }
 
-    /* ── Product details (right column) ── */
+    /* ── Product details ── */
     .product-details {
       padding: 16px 20px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 11px;
     }
-
     .field-group { display: flex; flex-direction: column; gap: 4px; }
     .field-group label {
-      font-size: .75rem;
+      font-size: .73rem;
       font-weight: 600;
       color: var(--muted);
       text-transform: uppercase;
@@ -229,7 +273,7 @@
       padding: 7px 10px;
       border: 1px solid var(--border);
       border-radius: 6px;
-      font-size: .88rem;
+      font-size: .87rem;
       color: var(--text);
       background: var(--bg);
       outline: none;
@@ -239,7 +283,7 @@
     }
     .field-group input:focus,
     .field-group textarea:focus { border-color: var(--accent); background: #fff; }
-    .field-group textarea { min-height: 70px; }
+    .field-group textarea { min-height: 68px; }
 
     .levels-row {
       display: grid;
@@ -248,7 +292,7 @@
     }
     .level-field { display: flex; flex-direction: column; gap: 3px; }
     .level-field label {
-      font-size: .72rem;
+      font-size: .7rem;
       font-weight: 600;
       color: var(--muted);
       text-transform: uppercase;
@@ -260,17 +304,16 @@
     .req-badge {
       background: #fce4d6;
       color: #c0392b;
-      font-size: .62rem;
+      font-size: .6rem;
       padding: 1px 4px;
       border-radius: 3px;
       font-weight: 700;
-      letter-spacing: 0;
     }
     .level-field input {
       padding: 6px 9px;
       border: 1px solid var(--border);
       border-radius: 6px;
-      font-size: .82rem;
+      font-size: .81rem;
       color: var(--text);
       background: var(--bg);
       outline: none;
@@ -280,12 +323,12 @@
     .level-field input:focus { border-color: var(--accent); background: #fff; }
     .level-field input.invalid { border-color: var(--danger); background: #fff5f5; }
 
-    /* ── Card header (select all row) ── */
+    /* ── Card header ── */
     .card-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 16px;
+      padding: 9px 16px;
       border-bottom: 1px solid var(--border);
       background: #fdfcfb;
     }
@@ -293,49 +336,46 @@
       display: flex;
       align-items: center;
       gap: 7px;
-      font-size: .82rem;
+      font-size: .81rem;
       color: var(--muted);
       cursor: pointer;
       user-select: none;
     }
     .select-all-label input[type="checkbox"] {
-      width: 15px; height: 15px;
+      width: 14px; height: 14px;
       accent-color: var(--accent);
       cursor: pointer;
     }
     .asset-count {
-      font-size: .78rem;
+      font-size: .76rem;
       color: var(--muted);
       background: #f0ede8;
       padding: 3px 8px;
       border-radius: 10px;
     }
 
-    /* ── Bottom action bar ── */
+    /* ── Action bar ── */
     #actionBar {
       position: fixed;
       bottom: 0; left: 0; right: 0;
       background: var(--surface);
       border-top: 1px solid var(--border);
-      padding: 14px 32px;
+      padding: 13px 32px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       box-shadow: 0 -4px 16px rgba(0,0,0,.07);
       z-index: 99;
     }
-    #selectionSummary {
-      font-size: .88rem;
-      color: var(--muted);
-    }
+    #selectionSummary { font-size: .88rem; color: var(--muted); }
     #selectionSummary strong { color: var(--accent); }
     #pushBtn {
-      padding: 11px 28px;
+      padding: 10px 26px;
       background: var(--accent);
       color: #fff;
       border: none;
       border-radius: 8px;
-      font-size: .95rem;
+      font-size: .93rem;
       font-weight: 600;
       cursor: pointer;
       transition: background .15s, opacity .15s;
@@ -351,7 +391,7 @@
       display: none;
       position: fixed; inset: 0;
       background: rgba(0,0,0,.4);
-      z-index: 200;
+      z-index: 300;
       align-items: center;
       justify-content: center;
     }
@@ -359,37 +399,113 @@
     .modal-box {
       background: var(--surface);
       border-radius: 12px;
-      padding: 32px 36px;
+      padding: 30px 34px;
       max-width: 480px;
       width: 90%;
       box-shadow: 0 16px 48px rgba(0,0,0,.18);
     }
-    .modal-box h2 { font-size: 1.2rem; margin-bottom: 8px; color: var(--accent); }
-    .modal-box p { font-size: .9rem; color: var(--muted); margin-bottom: 16px; }
-    .modal-links { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+    .modal-box h2 { font-size: 1.15rem; margin-bottom: 8px; color: var(--accent); }
+    .modal-box p  { font-size: .88rem; color: var(--muted); margin-bottom: 16px; }
+    .modal-links  { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
     .modal-links a {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--accent);
-      font-size: .88rem;
-      font-weight: 600;
-      text-decoration: none;
+      display: flex; align-items: center; gap: 8px;
+      color: var(--accent); font-size: .87rem; font-weight: 600; text-decoration: none;
     }
     .modal-links a:hover { text-decoration: underline; }
-    .modal-errors { font-size: .8rem; color: var(--danger); max-height: 140px; overflow-y: auto; margin-bottom: 14px; }
+    .modal-errors { font-size: .79rem; color: var(--danger); max-height: 130px; overflow-y: auto; margin-bottom: 14px; }
     .modal-errors li { margin-left: 16px; margin-bottom: 4px; }
     .btn-close {
-      padding: 9px 22px;
+      padding: 8px 20px;
       border: 1px solid var(--border);
       border-radius: 7px;
       background: transparent;
-      font-size: .88rem;
+      font-size: .87rem;
       font-weight: 600;
       cursor: pointer;
       color: var(--text);
     }
     .btn-close:hover { background: var(--bg); }
+
+    /* ── Lightbox ── */
+    #lightbox {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.88);
+      z-index: 400;
+      align-items: center;
+      justify-content: center;
+    }
+    #lightbox.open { display: flex; }
+    #lb-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      max-width: 96vw;
+      max-height: 96vh;
+    }
+    /* Portrait 3:4 media container */
+    #lb-media-box {
+      aspect-ratio: 3 / 4;
+      max-height: 90vh;
+      max-width: calc(90vh * 0.75);
+      width: min(900px, calc(90vh * 0.75));
+      background: #111;
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #lb-media-box img,
+    #lb-media-box video {
+      width: 100%; height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    .lb-nav-btn {
+      width: 44px; height: 44px;
+      background: rgba(255,255,255,.15);
+      border: none;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 1.4rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background .15s;
+    }
+    .lb-nav-btn:hover { background: rgba(255,255,255,.3); }
+    .lb-nav-btn:disabled { opacity: .2; cursor: default; }
+    #lb-close {
+      position: absolute;
+      top: -14px; right: -14px;
+      width: 34px; height: 34px;
+      background: rgba(255,255,255,.15);
+      border: none;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .15s;
+      z-index: 1;
+    }
+    #lb-close:hover { background: rgba(255,255,255,.3); }
+    #lb-counter {
+      position: absolute;
+      bottom: -28px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,.6);
+      font-size: .8rem;
+      white-space: nowrap;
+    }
 
     /* ── Responsive ── */
     @media (max-width: 900px) {
@@ -398,10 +514,12 @@
       .levels-row { grid-template-columns: 1fr 1fr; }
     }
     @media (max-width: 600px) {
-      header { padding: 14px 16px; flex-wrap: wrap; }
+      header { padding: 12px 16px; flex-wrap: wrap; }
+      #tabBar { padding: 0 16px; }
       main { padding: 16px 16px 120px; }
-      #actionBar { padding: 12px 16px; }
+      #actionBar { padding: 11px 16px; }
       .levels-row { grid-template-columns: 1fr; }
+      .asset-thumb { width: 100px; height: 133px; }
     }
   </style>
 </head>
@@ -410,37 +528,63 @@
 <!-- ── Header ── -->
 <header>
   <h1>TGC Upload</h1>
-  <div class="header-form">
+  <div class="header-form" id="scraperForm">
     <input id="urlInput"   type="url"  placeholder="Brand website URL (e.g. https://example.myshopify.com)" />
     <input id="brandInput" type="text" placeholder="Brand name" />
     <button class="btn-primary" id="getProductsBtn" onclick="getProducts()">Get Products</button>
   </div>
 </header>
 
-<!-- ── Status banner ── -->
-<div id="statusBar">
-  <div class="spinner" id="statusSpinner" style="display:none"></div>
-  <span id="statusText"></span>
+<!-- ── Tab bar ── -->
+<div id="tabBar">
+  <button class="tab-btn active" onclick="switchTab('scraper')">Product Scraper</button>
+  <button class="tab-btn" onclick="switchTab('instagram')">Instagram Handles</button>
+  <button class="tab-btn" onclick="switchTab('drive')">Google Drive Folders</button>
 </div>
 
-<!-- ── Drive link ── -->
-<div id="driveLinkBar">
-  Assets saved to Google Drive: <a id="driveLinkAnchor" href="#" target="_blank">Open folder</a>
-</div>
+<!-- ══════════ TAB: Product Scraper ══════════ -->
+<div class="tab-panel active" id="tab-scraper">
 
-<!-- ── Main ── -->
-<main>
-  <div id="emptyState">
-    <div class="icon">🖼️</div>
-    <p>Enter a brand URL above and click <strong>Get Products</strong> to begin.</p>
+  <div id="statusBar">
+    <div class="spinner" id="statusSpinner" style="display:none"></div>
+    <span id="statusText"></span>
   </div>
-  <div id="productGrid"></div>
-</main>
 
-<!-- ── Action bar ── -->
-<div id="actionBar">
-  <span id="selectionSummary">No items selected</span>
-  <button id="pushBtn" disabled onclick="pushToStorage()">Push to Storage</button>
+  <div id="driveLinkBar">
+    Assets saved to Google Drive: <a id="driveLinkAnchor" href="#" target="_blank">Open folder</a>
+  </div>
+
+  <main>
+    <div id="emptyState">
+      <div class="icon">🖼️</div>
+      <p>Enter a brand URL above and click <strong>Get Products</strong> to begin.</p>
+    </div>
+    <div id="productGrid"></div>
+  </main>
+
+  <div id="actionBar">
+    <span id="selectionSummary">No items selected</span>
+    <button id="pushBtn" disabled onclick="pushToStorage()">Push to Storage</button>
+  </div>
+
+</div><!-- /tab-scraper -->
+
+<!-- ══════════ TAB: Instagram Handles ══════════ -->
+<div class="tab-panel" id="tab-instagram">
+  <div class="coming-soon">
+    <div class="icon">📸</div>
+    <h2>Instagram Handles</h2>
+    <p>Scrape product images and content directly from Instagram brand handles. Coming soon.</p>
+  </div>
+</div>
+
+<!-- ══════════ TAB: Google Drive Folders ══════════ -->
+<div class="tab-panel" id="tab-drive">
+  <div class="coming-soon">
+    <div class="icon">📁</div>
+    <h2>Google Drive Folders</h2>
+    <p>Import product assets directly from shared Google Drive folders. Coming soon.</p>
+  </div>
 </div>
 
 <!-- ── Result modal ── -->
@@ -454,57 +598,67 @@
   </div>
 </div>
 
+<!-- ── Lightbox ── -->
+<div id="lightbox" onclick="handleLbBackdrop(event)">
+  <div id="lb-wrap">
+    <button class="lb-nav-btn" id="lb-prev" onclick="lbNav(-1)">&#8249;</button>
+    <div id="lb-media-box"></div>
+    <button class="lb-nav-btn" id="lb-next" onclick="lbNav(1)">&#8250;</button>
+    <button id="lb-close" onclick="closeLightbox()">&#215;</button>
+    <span id="lb-counter"></span>
+  </div>
+</div>
+
 <script>
-  // ---------------------------------------------------------------------------
-  // Config — if frontend is served separately, set API base URL here
-  // ---------------------------------------------------------------------------
   const API_BASE = window.API_BASE_URL || '';
 
-  // ---------------------------------------------------------------------------
-  // State
-  // ---------------------------------------------------------------------------
-  let products = [];            // raw scraped products
-  let productState = [];        // user-edited state, mirrors products
-  // selectedAssets: Map<"pIdx_aIdx", boolean>
+  // ── State ──
+  let products = [];
+  let productState = [];
   let selectedAssets = new Map();
 
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
+  // Lightbox state
+  let lbProdIdx = -1;
+  let lbAssetIdx = -1;
+
+  // ── Tab switching ──
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => {
+      b.classList.toggle('active', b.textContent.toLowerCase().includes(name) ||
+        (name === 'scraper' && i === 0) ||
+        (name === 'instagram' && i === 1) ||
+        (name === 'drive' && i === 2));
+    });
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(`tab-${name}`).classList.add('active');
+
+    // Show/hide header form — only relevant for scraper tab
+    document.getElementById('scraperForm').style.display = name === 'scraper' ? 'flex' : 'none';
+  }
+
+  // ── Status helpers ──
   function showStatus(msg, type = 'info', loading = false) {
     const bar = document.getElementById('statusBar');
-    const spinner = document.getElementById('statusSpinner');
-    const text = document.getElementById('statusText');
+    document.getElementById('statusSpinner').style.display = loading ? 'block' : 'none';
+    document.getElementById('statusText').textContent = msg;
     bar.className = type;
-    spinner.style.display = loading ? 'block' : 'none';
-    text.textContent = msg;
-  }
-  function hideStatus() {
-    document.getElementById('statusBar').className = '';
-    document.getElementById('statusBar').style.display = 'none';
   }
 
   function setLoading(btn, loading, label) {
     btn.disabled = loading;
     btn.innerHTML = loading
-      ? `<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> ${label}`
+      ? `<span class="spinner" style="width:13px;height:13px;border-width:2px"></span> ${label}`
       : label;
   }
 
-  // ---------------------------------------------------------------------------
-  // Part 1 — Get Products
-  // ---------------------------------------------------------------------------
+  // ── Get Products ──
   async function getProducts() {
-    const url = document.getElementById('urlInput').value.trim();
+    const url   = document.getElementById('urlInput').value.trim();
     const brand = document.getElementById('brandInput').value.trim();
-
-    if (!url || !brand) {
-      showStatus('Please enter both a URL and a brand name.', 'error');
-      return;
-    }
+    if (!url || !brand) { showStatus('Please enter both a URL and a brand name.', 'error'); return; }
 
     const btn = document.getElementById('getProductsBtn');
-    setLoading(btn, true, 'Scraping...');
+    setLoading(btn, true, 'Scraping…');
     showStatus('Scraping products and uploading assets to Drive — this may take a minute…', 'info', true);
     document.getElementById('driveLinkBar').style.display = 'none';
     document.getElementById('emptyState').style.display = 'none';
@@ -513,32 +667,33 @@
     updateActionBar();
 
     try {
-      const res = await fetch(`${API_BASE}/api/scrape`, {
+      const res  = await fetch(`${API_BASE}/api/scrape`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, brand }),
       });
-
       const data = await res.json();
 
       if (!res.ok) {
-        showStatus(data.detail || 'Scraping failed.', 'error');
-        setLoading(btn, false, 'Get Products');
+        showStatus(data.detail || "This website couldn't be scraped.", 'error');
         document.getElementById('emptyState').style.display = 'block';
+        setLoading(btn, false, 'Get Products');
         return;
       }
 
-      products = data.products || [];
-      productState = products.map(p => ({ ...p, assets: p.assets.map(a => ({ ...a })),
-        level_1: '', level_2: '', level_3: '', level_4: '', level_5: '' }));
+      products     = data.products || [];
+      productState = products.map(p => ({
+        ...p,
+        assets: p.assets.map(a => ({ ...a })),
+        level_1: '', level_2: '', level_3: '', level_4: '', level_5: ''
+      }));
 
       if (data.drive_folder_url) {
-        const bar = document.getElementById('driveLinkBar');
         document.getElementById('driveLinkAnchor').href = data.drive_folder_url;
-        bar.style.display = 'block';
+        document.getElementById('driveLinkBar').style.display = 'block';
       }
 
-      showStatus(`Found ${products.length} products (${data.platform}). Select images and fill levels below.`, 'success');
+      showStatus(`Found ${products.length} products (${data.platform}). Click images to preview, use ✓ to select.`, 'success');
       renderGrid();
 
     } catch (err) {
@@ -549,9 +704,7 @@
     setLoading(btn, false, 'Get Products');
   }
 
-  // ---------------------------------------------------------------------------
-  // Render product grid
-  // ---------------------------------------------------------------------------
+  // ── Render Grid ──
   function renderGrid() {
     const grid = document.getElementById('productGrid');
     grid.innerHTML = '';
@@ -561,166 +714,188 @@
       card.className = 'product-card';
       card.id = `card-${pIdx}`;
 
-      // ── Card header ──
-      const selectedCount = prod.assets.filter((_, aIdx) =>
-        selectedAssets.get(`${pIdx}_${aIdx}`)
-      ).length;
+      const selCount = prod.assets.filter((_, ai) => selectedAssets.get(`${pIdx}_${ai}`)).length;
 
       card.innerHTML = `
         <div class="card-header">
           <label class="select-all-label">
             <input type="checkbox" id="selectAll-${pIdx}"
-              ${selectedCount === prod.assets.length && prod.assets.length > 0 ? 'checked' : ''}
+              ${selCount === prod.assets.length && prod.assets.length > 0 ? 'checked' : ''}
               onchange="toggleSelectAll(${pIdx}, this.checked)" />
-            Select all images
+            Select all
           </label>
           <span class="asset-count">${prod.assets.length} asset${prod.assets.length !== 1 ? 's' : ''}</span>
         </div>
 
         <div class="card-body">
-
-          <!-- Asset strip -->
           <div class="asset-strip" id="strip-${pIdx}">
-            ${prod.assets.map((asset, aIdx) => renderThumb(pIdx, aIdx, asset)).join('')}
+            ${prod.assets.map((a, ai) => renderThumb(pIdx, ai, a)).join('')}
           </div>
 
-          <!-- Product details -->
           <div class="product-details">
-
             <div class="field-group">
               <label>Product Name</label>
               <input type="text" value="${escHtml(prod.product_name)}"
                 oninput="productState[${pIdx}].product_name = this.value" />
             </div>
-
             <div class="field-group">
               <label>Description</label>
               <textarea oninput="productState[${pIdx}].description = this.value">${escHtml(prod.description)}</textarea>
             </div>
-
             <div class="field-group">
               <label>Price</label>
               <input type="text" value="${escHtml(prod.price)}"
-                oninput="productState[${pIdx}].price = this.value"
-                style="max-width:160px" />
+                oninput="productState[${pIdx}].price = this.value" style="max-width:150px" />
             </div>
-
             <div class="levels-row">
               <div class="level-field">
                 <label>Level 1 <span class="req-badge">REQ</span></label>
                 <input type="text" id="l1-${pIdx}" placeholder="e.g. Hampers"
                   value="${escHtml(prod.level_1)}"
-                  oninput="productState[${pIdx}].level_1 = this.value; validateLevels(${pIdx}); updateActionBar()" />
+                  oninput="productState[${pIdx}].level_1=this.value;validateLevels(${pIdx});updateActionBar()" />
               </div>
               <div class="level-field">
                 <label>Level 2 <span class="req-badge">REQ</span></label>
                 <input type="text" id="l2-${pIdx}" placeholder="e.g. Occasion"
                   value="${escHtml(prod.level_2)}"
-                  oninput="productState[${pIdx}].level_2 = this.value; validateLevels(${pIdx}); updateActionBar()" />
+                  oninput="productState[${pIdx}].level_2=this.value;validateLevels(${pIdx});updateActionBar()" />
               </div>
               <div class="level-field">
                 <label>Level 3</label>
                 <input type="text" id="l3-${pIdx}" placeholder="Sub category"
                   value="${escHtml(prod.level_3)}"
-                  oninput="productState[${pIdx}].level_3 = this.value" />
+                  oninput="productState[${pIdx}].level_3=this.value" />
               </div>
               <div class="level-field">
                 <label>Level 4</label>
                 <input type="text" id="l4-${pIdx}" placeholder="Sub category"
                   value="${escHtml(prod.level_4)}"
-                  oninput="productState[${pIdx}].level_4 = this.value" />
+                  oninput="productState[${pIdx}].level_4=this.value" />
               </div>
               <div class="level-field">
                 <label>Level 5</label>
                 <input type="text" id="l5-${pIdx}" placeholder="Sub category"
                   value="${escHtml(prod.level_5)}"
-                  oninput="productState[${pIdx}].level_5 = this.value" />
+                  oninput="productState[${pIdx}].level_5=this.value" />
               </div>
             </div>
-
-          </div><!-- /product-details -->
-        </div><!-- /card-body -->
+          </div>
+        </div>
       `;
-
       grid.appendChild(card);
     });
   }
 
   function renderThumb(pIdx, aIdx, asset) {
-    const key = `${pIdx}_${aIdx}`;
-    const sel = selectedAssets.get(key) ? 'selected' : '';
+    const sel     = selectedAssets.get(`${pIdx}_${aIdx}`) ? 'selected' : '';
     const isVideo = asset.type === 'video';
 
     const media = isVideo
-      ? `<video src="${escAttr(asset.url)}" muted preload="metadata"></video>`
-      : `<img src="${escAttr(asset.url)}" alt="" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22110%22 height=%22110%22%3E%3Crect fill=%22%23eee%22 width=%22110%22 height=%22110%22/%3E%3C/svg%3E'" />`;
+      ? `<video class="thumb-media" src="${escAttr(asset.url)}" muted preload="metadata"
+           onclick="openLightbox(${pIdx},${aIdx})"></video>`
+      : `<img class="thumb-media" src="${escAttr(asset.url)}" alt="" loading="lazy"
+           onclick="openLightbox(${pIdx},${aIdx})"
+           onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22160%22%3E%3Crect fill=%22%23eee%22 width=%22120%22 height=%22160%22/%3E%3C/svg%3E'" />`;
 
     return `
-      <div class="asset-thumb ${sel}" id="thumb-${pIdx}-${aIdx}"
-        onclick="toggleAsset(${pIdx}, ${aIdx})">
+      <div class="asset-thumb ${sel}" id="thumb-${pIdx}-${aIdx}">
         ${media}
-        <div class="check-overlay">
-          <svg viewBox="0 0 12 9"><path d="M1 4l3.5 3.5L11 1" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="sel-btn" onclick="toggleAsset(${pIdx},${aIdx})">
+          <svg viewBox="0 0 12 9" fill="none">
+            <path d="M1 4l3.5 3.5L11 1" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </div>
         <span class="type-badge">${isVideo ? 'video' : 'img'}</span>
       </div>`;
   }
 
-  // ---------------------------------------------------------------------------
-  // Selection logic
-  // ---------------------------------------------------------------------------
+  // ── Lightbox ──
+  function openLightbox(pIdx, aIdx) {
+    lbProdIdx  = pIdx;
+    lbAssetIdx = aIdx;
+    renderLightboxMedia();
+    document.getElementById('lightbox').classList.add('open');
+    document.addEventListener('keydown', lbKeyHandler);
+  }
+
+  function renderLightboxMedia() {
+    const prod    = productState[lbProdIdx];
+    const asset   = prod.assets[lbAssetIdx];
+    const box     = document.getElementById('lb-media-box');
+    const counter = document.getElementById('lb-counter');
+
+    if (asset.type === 'video') {
+      box.innerHTML = `<video src="${escAttr(asset.url)}" controls autoplay muted
+        style="width:100%;height:100%;object-fit:contain"></video>`;
+    } else {
+      box.innerHTML = `<img src="${escAttr(asset.url)}" alt=""
+        style="width:100%;height:100%;object-fit:contain" />`;
+    }
+
+    counter.textContent = `${lbAssetIdx + 1} / ${prod.assets.length}`;
+    document.getElementById('lb-prev').disabled = lbAssetIdx === 0;
+    document.getElementById('lb-next').disabled = lbAssetIdx === prod.assets.length - 1;
+  }
+
+  function lbNav(dir) {
+    const prod = productState[lbProdIdx];
+    const next = lbAssetIdx + dir;
+    if (next < 0 || next >= prod.assets.length) return;
+    lbAssetIdx = next;
+    renderLightboxMedia();
+  }
+
+  function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('open');
+    document.getElementById('lb-media-box').innerHTML = '';
+    document.removeEventListener('keydown', lbKeyHandler);
+  }
+
+  function handleLbBackdrop(e) {
+    if (e.target === document.getElementById('lightbox')) closeLightbox();
+  }
+
+  function lbKeyHandler(e) {
+    if (e.key === 'Escape')      closeLightbox();
+    if (e.key === 'ArrowLeft')   lbNav(-1);
+    if (e.key === 'ArrowRight')  lbNav(1);
+  }
+
+  // ── Selection ──
   function toggleAsset(pIdx, aIdx) {
-    const key = `${pIdx}_${aIdx}`;
-    const current = selectedAssets.get(key) || false;
-    selectedAssets.set(key, !current);
-
-    // Update thumb
-    const thumb = document.getElementById(`thumb-${pIdx}-${aIdx}`);
-    if (thumb) thumb.classList.toggle('selected', !current);
-
-    // Update card border
+    const key  = `${pIdx}_${aIdx}`;
+    const next = !(selectedAssets.get(key) || false);
+    selectedAssets.set(key, next);
+    document.getElementById(`thumb-${pIdx}-${aIdx}`)?.classList.toggle('selected', next);
     updateCardHighlight(pIdx);
-
-    // Sync select-all checkbox
     const prod = productState[pIdx];
-    const allSelected = prod.assets.every((_, ai) => selectedAssets.get(`${pIdx}_${ai}`));
+    const allSel = prod.assets.every((_, ai) => selectedAssets.get(`${pIdx}_${ai}`));
     const cb = document.getElementById(`selectAll-${pIdx}`);
-    if (cb) cb.checked = allSelected;
-
+    if (cb) cb.checked = allSel;
     updateActionBar();
   }
 
   function toggleSelectAll(pIdx, checked) {
-    const prod = productState[pIdx];
-    prod.assets.forEach((_, aIdx) => {
-      const key = `${pIdx}_${aIdx}`;
-      selectedAssets.set(key, checked);
-      const thumb = document.getElementById(`thumb-${pIdx}-${aIdx}`);
-      if (thumb) thumb.classList.toggle('selected', checked);
+    productState[pIdx].assets.forEach((_, aIdx) => {
+      selectedAssets.set(`${pIdx}_${aIdx}`, checked);
+      document.getElementById(`thumb-${pIdx}-${aIdx}`)?.classList.toggle('selected', checked);
     });
     updateCardHighlight(pIdx);
     updateActionBar();
   }
 
   function updateCardHighlight(pIdx) {
-    const prod = productState[pIdx];
-    const hasAny = prod.assets.some((_, aIdx) => selectedAssets.get(`${pIdx}_${aIdx}`));
-    const card = document.getElementById(`card-${pIdx}`);
-    if (card) card.classList.toggle('has-selection', hasAny);
+    const hasAny = productState[pIdx].assets.some((_, ai) => selectedAssets.get(`${pIdx}_${ai}`));
+    document.getElementById(`card-${pIdx}`)?.classList.toggle('has-selection', hasAny);
   }
 
-  // ---------------------------------------------------------------------------
-  // Validation
-  // ---------------------------------------------------------------------------
+  // ── Validation ──
   function validateLevels(pIdx) {
-    const prod = productState[pIdx];
-    const hasSelection = prod.assets.some((_, aIdx) => selectedAssets.get(`${pIdx}_${aIdx}`));
-    if (!hasSelection) return;
-
-    const l1 = document.getElementById(`l1-${pIdx}`);
-    const l2 = document.getElementById(`l2-${pIdx}`);
-    if (l1) l1.classList.toggle('invalid', !prod.level_1.trim());
-    if (l2) l2.classList.toggle('invalid', !prod.level_2.trim());
+    const prod    = productState[pIdx];
+    const hasSel  = prod.assets.some((_, ai) => selectedAssets.get(`${pIdx}_${ai}`));
+    if (!hasSel) return;
+    document.getElementById(`l1-${pIdx}`)?.classList.toggle('invalid', !prod.level_1.trim());
+    document.getElementById(`l2-${pIdx}`)?.classList.toggle('invalid', !prod.level_2.trim());
   }
 
   function getSelectedCount() {
@@ -728,84 +903,50 @@
   }
 
   function canPush() {
-    const total = getSelectedCount();
-    if (total === 0) return false;
-
-    // Every product that has at least one selected asset must have level_1 + level_2
-    for (let pIdx = 0; pIdx < productState.length; pIdx++) {
-      const prod = productState[pIdx];
-      const hasSelection = prod.assets.some((_, aIdx) => selectedAssets.get(`${pIdx}_${aIdx}`));
-      if (hasSelection && (!prod.level_1.trim() || !prod.level_2.trim())) return false;
-    }
-    return true;
+    if (getSelectedCount() === 0) return false;
+    return productState.every((prod, pIdx) => {
+      const hasSel = prod.assets.some((_, ai) => selectedAssets.get(`${pIdx}_${ai}`));
+      return !hasSel || (prod.level_1.trim() && prod.level_2.trim());
+    });
   }
 
   function updateActionBar() {
     const count = getSelectedCount();
-    const summary = document.getElementById('selectionSummary');
-    const btn = document.getElementById('pushBtn');
-
-    if (count === 0) {
-      summary.innerHTML = 'No items selected';
-    } else {
-      summary.innerHTML = `<strong>${count}</strong> asset${count !== 1 ? 's' : ''} selected`;
-    }
-
-    btn.disabled = !canPush();
-
-    // Show invalid level fields for products with selection
+    document.getElementById('selectionSummary').innerHTML =
+      count === 0 ? 'No items selected'
+                  : `<strong>${count}</strong> asset${count !== 1 ? 's' : ''} selected`;
+    document.getElementById('pushBtn').disabled = !canPush();
     productState.forEach((_, pIdx) => validateLevels(pIdx));
   }
 
-  // ---------------------------------------------------------------------------
-  // Part 3 + 4 — Push to Storage
-  // ---------------------------------------------------------------------------
+  // ── Push to Storage ──
   async function pushToStorage() {
     const brand = document.getElementById('brandInput').value.trim();
-
-    // Build payload — only products with selected assets
     const selectedProducts = productState
       .map((prod, pIdx) => {
-        const selectedAssetList = prod.assets.filter((_, aIdx) =>
-          selectedAssets.get(`${pIdx}_${aIdx}`)
-        );
-        if (selectedAssetList.length === 0) return null;
-        return {
-          product_name: prod.product_name,
-          price: prod.price,
-          description: prod.description,
-          assets: selectedAssetList,
-          level_1: prod.level_1 || '',
-          level_2: prod.level_2 || '',
-          level_3: prod.level_3 || '',
-          level_4: prod.level_4 || '',
-          level_5: prod.level_5 || '',
-        };
-      })
-      .filter(Boolean);
+        const sel = prod.assets.filter((_, ai) => selectedAssets.get(`${pIdx}_${ai}`));
+        if (!sel.length) return null;
+        return { product_name: prod.product_name, price: prod.price, description: prod.description,
+          assets: sel, level_1: prod.level_1||'', level_2: prod.level_2||'',
+          level_3: prod.level_3||'', level_4: prod.level_4||'', level_5: prod.level_5||'' };
+      }).filter(Boolean);
 
     const btn = document.getElementById('pushBtn');
     setLoading(btn, true, 'Uploading…');
     showStatus('Uploading to ImageKit… this may take a while for large catalogs.', 'info', true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/push-to-storage`, {
+      const res  = await fetch(`${API_BASE}/api/push-to-storage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ products: selectedProducts, brand }),
       });
-
       const data = await res.json();
 
-      if (!res.ok) {
-        showStatus(data.detail || 'Push failed.', 'error');
-        setLoading(btn, false, 'Push to Storage');
-        return;
-      }
+      if (!res.ok) { showStatus(data.detail || 'Push failed.', 'error'); setLoading(btn, false, 'Push to Storage'); return; }
 
       showStatus(`Done! ${data.upload_count} asset${data.upload_count !== 1 ? 's' : ''} pushed to ImageKit.`, 'success');
       openResultModal(data);
-
     } catch (err) {
       showStatus(`Network error: ${err.message}`, 'error');
     }
@@ -813,33 +954,22 @@
     setLoading(btn, false, 'Push to Storage');
   }
 
-  // ---------------------------------------------------------------------------
-  // Result modal
-  // ---------------------------------------------------------------------------
+  // ── Result modal ──
   function openResultModal(data) {
-    document.getElementById('modalTitle').textContent = 'Upload Complete';
+    document.getElementById('modalTitle').textContent  = 'Upload Complete';
     document.getElementById('modalSummary').textContent =
       `${data.upload_count} asset${data.upload_count !== 1 ? 's' : ''} uploaded to ImageKit.` +
       (data.sheets_url ? ' Google Sheet updated.' : '');
 
     const links = document.getElementById('modalLinks');
-    links.innerHTML = '';
-    if (data.sheets_url) {
-      links.innerHTML += `<a href="${escAttr(data.sheets_url)}" target="_blank">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 3l5 5-5 5V6z"/></svg>
-        View Google Sheet export
-      </a>`;
-    }
+    links.innerHTML = data.sheets_url
+      ? `<a href="${escAttr(data.sheets_url)}" target="_blank">View Google Sheet export</a>` : '';
 
     const errList = document.getElementById('modalErrors');
     errList.innerHTML = '';
-    if (data.errors && data.errors.length > 0) {
-      data.errors.forEach(e => {
-        const li = document.createElement('li');
-        li.textContent = e;
-        errList.appendChild(li);
-      });
-    }
+    (data.errors || []).forEach(e => {
+      const li = document.createElement('li'); li.textContent = e; errList.appendChild(li);
+    });
 
     document.getElementById('resultModal').classList.add('open');
   }
@@ -847,32 +977,21 @@
   function closeModal() {
     document.getElementById('resultModal').classList.remove('open');
   }
-
-  // Close modal on backdrop click
-  document.getElementById('resultModal').addEventListener('click', function (e) {
-    if (e.target === this) closeModal();
+  document.getElementById('resultModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('resultModal')) closeModal();
   });
 
-  // ---------------------------------------------------------------------------
-  // Utility
-  // ---------------------------------------------------------------------------
-  function escHtml(str) {
-    return String(str || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+  // ── Utils ──
+  function escHtml(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
-  function escAttr(str) {
-    return String(str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  function escAttr(s) {
+    return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
-  // Enter key on URL/brand inputs triggers get products
-  ['urlInput', 'brandInput'].forEach(id => {
-    document.getElementById(id).addEventListener('keydown', e => {
-      if (e.key === 'Enter') getProducts();
-    });
-  });
+  ['urlInput','brandInput'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') getProducts(); })
+  );
 </script>
 </body>
 </html>

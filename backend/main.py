@@ -1,7 +1,9 @@
+import asyncio
 import mimetypes
 import os
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional
 
@@ -11,6 +13,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+SCRAPE_TIMEOUT_SECS = 300   # 5 minutes overall
+SCRAPE_MAX_RETRIES  = 2
+_executor = ThreadPoolExecutor(max_workers=4)
 
 load_dotenv()
 
@@ -117,13 +123,37 @@ async def scrape_endpoint(req: ScrapeRequest):
     4. Return the product list + Drive folder URL.
     """
 
-    products, platform = detect_and_scrape(req.url)
+    loop = asyncio.get_event_loop()
+    deadline = loop.time() + SCRAPE_TIMEOUT_SECS
+    products, platform = [], "unknown"
+
+    for attempt in range(SCRAPE_MAX_RETRIES):
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            break
+        try:
+            products, platform = await asyncio.wait_for(
+                loop.run_in_executor(_executor, detect_and_scrape, req.url),
+                timeout=remaining,
+            )
+            if products:
+                break
+        except asyncio.TimeoutError:
+            raise HTTPException(
+                status_code=408,
+                detail="This website couldn't be scraped — it timed out after 5 minutes. "
+                       "The site may not expose a public product API.",
+            )
+        except Exception as exc:
+            print(f"[Scraper] Attempt {attempt + 1} failed: {exc}")
+            if attempt < SCRAPE_MAX_RETRIES - 1:
+                await asyncio.sleep(2)
 
     if not products:
         raise HTTPException(
             status_code=404,
-            detail=f"No products found at {req.url} (platform detected: {platform}). "
-                   "The site may not expose a public product API.",
+            detail=f"This website couldn't be scraped after {SCRAPE_MAX_RETRIES} attempts. "
+                   "It may not be a Shopify or WooCommerce store, or the product API may be private.",
         )
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
