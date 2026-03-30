@@ -541,6 +541,7 @@
   <button class="tab-btn active" data-tab="scraper"   onclick="switchTab('scraper')">Product Scraper</button>
   <button class="tab-btn"        data-tab="drive"     onclick="switchTab('drive')">Google Drive Folders</button>
   <button class="tab-btn"        data-tab="instagram" onclick="switchTab('instagram')">Instagram Handles</button>
+  <button class="tab-btn"        data-tab="igpost"    onclick="switchTab('igpost')">View as IG Post</button>
 </div>
 
 <!-- ══════════ TAB: Product Scraper ══════════ -->
@@ -568,10 +569,46 @@
 
 <!-- ══════════ TAB: Instagram Handles ══════════ -->
 <div class="tab-panel" id="tab-instagram">
+
+  <!-- Instagram input form — lives inside the tab -->
+  <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <input id="igHandleInput" type="text"
+      placeholder="Instagram handle (e.g. @brandname)"
+      style="flex:2;min-width:220px;padding:9px 13px;border:1px solid var(--border);border-radius:7px;font-size:.88rem;outline:none;background:var(--bg)"
+      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
+    <input id="igBrandInput" type="text"
+      placeholder="Brand name"
+      style="flex:1;min-width:150px;padding:9px 13px;border:1px solid var(--border);border-radius:7px;font-size:.88rem;outline:none;background:var(--bg)"
+      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
+    <button class="btn-primary" id="getIgBtn" onclick="getInstagramPosts()">Get Posts</button>
+  </div>
+
+  <div id="instagram-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
+    <div class="spinner" id="instagram-statusSpinner" style="display:none"></div>
+    <span id="instagram-statusText"></span>
+  </div>
+
+  <div id="instagram-driveLinkBar" style="display:none;padding:9px 32px;background:#fff8e1;border-bottom:1px solid #ffe082;font-size:.84rem;color:#5a4000">
+    Assets saved to Google Drive: <a id="instagram-driveLinkAnchor" href="#" target="_blank" style="color:#2d6a4f;font-weight:600">Open folder</a>
+  </div>
+
+  <main>
+    <div id="instagram-emptyState" style="text-align:center;padding:80px 20px;color:var(--muted)">
+      <div class="icon" style="font-size:3rem;margin-bottom:12px">📸</div>
+      <p>Enter an Instagram handle above and click <strong>Get Posts</strong> to begin.</p>
+      <p style="font-size:.82rem;margin-top:10px;color:var(--muted)">Only <em>public</em> accounts can be scraped. Up to 20 recent posts will be fetched.</p>
+    </div>
+    <div id="instagram-grid"></div>
+  </main>
+
+</div>
+
+<!-- ══════════ TAB: View as IG Post ══════════ -->
+<div class="tab-panel" id="tab-igpost">
   <div class="coming-soon">
-    <div class="icon">📸</div>
-    <h2>Instagram Handles</h2>
-    <p>Scrape product images and content directly from Instagram brand handles. Coming soon.</p>
+    <div class="icon">🖼️</div>
+    <h2>View as IG Post</h2>
+    <p>Preview selected assets formatted as an Instagram post layout. Coming soon.</p>
   </div>
 </div>
 
@@ -644,8 +681,9 @@
 
   // ── Per-tab state ──
   const tabStates = {
-    scraper: { productState: [], selectedAssets: new Map() },
-    drive:   { productState: [], selectedAssets: new Map() },
+    scraper:   { productState: [], selectedAssets: new Map() },
+    drive:     { productState: [], selectedAssets: new Map() },
+    instagram: { productState: [], selectedAssets: new Map() },
   };
   let activeTab = 'scraper';
 
@@ -674,7 +712,7 @@
 
   // ── Status helpers (tab-aware) ──
   function showStatus(msg, type = 'info', loading = false) {
-    const prefix = activeTab === 'drive' ? 'drive-' : '';
+    const prefix = activeTab === 'drive' ? 'drive-' : activeTab === 'instagram' ? 'instagram-' : '';
     const bar     = document.getElementById(`${prefix}statusBar`);
     const spinner = document.getElementById(`${prefix}statusSpinner`);
     const text    = document.getElementById(`${prefix}statusText`);
@@ -786,6 +824,42 @@
       document.getElementById('drive-emptyState').style.display = 'block';
     }
     setLoading(btn, false, 'Get Files');
+  }
+
+  // ── Get Instagram Posts (instagram tab) ──
+  async function getInstagramPosts() {
+    const handle = document.getElementById('igHandleInput').value.trim().replace(/^@/, '');
+    const brand  = document.getElementById('igBrandInput').value.trim();
+    if (!handle || !brand) { showStatus('Please enter both an Instagram handle and a brand name.', 'error'); return; }
+
+    const btn = document.getElementById('getIgBtn');
+    setLoading(btn, true, 'Fetching…');
+    showStatus('Fetching posts from Instagram — this may take a minute due to rate limits…', 'info', true);
+    document.getElementById('instagram-driveLinkBar').style.display = 'none';
+    document.getElementById('instagram-emptyState').style.display = 'none';
+    document.getElementById('instagram-grid').innerHTML = '';
+    S().selectedAssets.clear();
+    updateActionBar();
+
+    try {
+      const res  = await fetch(`${API_BASE}/api/scrape-instagram`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle, brand }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showStatus(data.detail || "Couldn't fetch posts from Instagram.", 'error');
+        document.getElementById('instagram-emptyState').style.display = 'block';
+        setLoading(btn, false, 'Get Posts'); return;
+      }
+
+      handleScrapeResponse(data, 'instagram-emptyState', 'instagram-driveLinkBar', 'instagram-driveLinkAnchor', 'instagram-grid');
+    } catch (err) {
+      showStatus(`Network error: ${err.message}`, 'error');
+      document.getElementById('instagram-emptyState').style.display = 'block';
+    }
+    setLoading(btn, false, 'Get Posts');
   }
 
   // ── Render Grid ──
@@ -1007,7 +1081,9 @@
   async function pushToStorage() {
     const brand = activeTab === 'drive'
       ? document.getElementById('driveBrandInput').value.trim()
-      : document.getElementById('brandInput').value.trim();
+      : activeTab === 'instagram'
+        ? document.getElementById('igBrandInput').value.trim()
+        : document.getElementById('brandInput').value.trim();
     const selectedProducts = S().productState
       .map((prod, pIdx) => {
         const sel = prod.assets.filter((_, ai) => S().selectedAssets.get(`${pIdx}_${ai}`));
@@ -1080,6 +1156,9 @@
   );
   ['driveUrlInput','driveBrandInput'].forEach(id =>
     document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') getDriveFiles(); })
+  );
+  ['igHandleInput','igBrandInput'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') getInstagramPosts(); })
   );
 </script>
 </body>

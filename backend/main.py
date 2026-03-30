@@ -32,6 +32,7 @@ from drive_client import (
 )
 from drive_scraper import scrape_drive, extract_drive_id
 from imagekit_client import fetch_all_imagekit_files, upload_to_imagekit
+from instagram_scraper import scrape_instagram
 from scraper import detect_and_scrape
 
 HEADERS = {
@@ -79,6 +80,11 @@ class ProductIn(BaseModel):
 
 class PushRequest(BaseModel):
     products: list[ProductIn]  # only products with selected assets
+    brand: str
+
+
+class InstagramRequest(BaseModel):
+    handle: str
     brand: str
 
 
@@ -284,6 +290,86 @@ async def scrape_drive_endpoint(req: ScrapeRequest):
         "count": len(products),
         "drive_folder_url": folder_url,
         "platform": "google_drive",
+    }
+
+
+# ---------------------------------------------------------------------------
+# POST /api/scrape-instagram
+# ---------------------------------------------------------------------------
+
+@app.post("/api/scrape-instagram")
+async def scrape_instagram_endpoint(req: InstagramRequest):
+    """
+    Scrape the latest posts from a public Instagram profile.
+    Returns up to 20 posts with image/video assets.
+    """
+    handle = req.handle.lstrip("@").strip()
+    if not handle:
+        raise HTTPException(status_code=400, detail="Please enter an Instagram handle.")
+
+    try:
+        products, status = await asyncio.get_event_loop().run_in_executor(
+            _executor,
+            scrape_instagram,
+            handle,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=408,
+            detail="Instagram scraping timed out. Please try again.",
+        )
+
+    error_messages = {
+        "not_found":    f"No Instagram account found for @{handle}. Check the handle and try again.",
+        "private":      f"@{handle} is a private account. Only public profiles can be scraped.",
+        "rate_limited": "Instagram has temporarily rate-limited this request. Please wait a few minutes and try again.",
+        "empty":        f"No posts found on @{handle}.",
+        "error":        "Something went wrong while accessing Instagram. Please try again.",
+    }
+
+    if status != "ok":
+        raise HTTPException(status_code=400, detail=error_messages.get(status, "Unknown error."))
+
+    # Create Drive folder + CSV (non-fatal if it fails)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    brand_safe = sanitize(req.brand)
+    folder_url = None
+
+    try:
+        folder_id, folder_url, _ = create_brand_folder(brand_safe, timestamp)
+        csv_rows = []
+        for prod in products:
+            row = {
+                "product_name": prod.get("product_name", ""),
+                "price": prod.get("price", ""),
+                "description": prod.get("description", ""),
+                "brand": req.brand,
+                "post_url": prod.get("post_url", ""),
+            }
+            for i, a in enumerate(prod.get("assets", [])[:4]):
+                row[f"asset_{i+1}_url"] = a["url"]
+                row[f"asset_{i+1}_type"] = a["type"]
+            csv_rows.append(row)
+
+        csv_headers = [
+            "product_name", "price", "description", "brand", "post_url",
+            "asset_1_url", "asset_1_type", "asset_2_url", "asset_2_type",
+            "asset_3_url", "asset_3_type", "asset_4_url", "asset_4_type",
+        ]
+        upload_csv_to_drive(
+            csv_rows, csv_headers,
+            f"{brand_safe}_{timestamp}_instagram.csv",
+            folder_id,
+        )
+    except Exception as exc:
+        print(f"[Drive] Instagram CSV upload error: {exc}")
+
+    return {
+        "products": products,
+        "count": len(products),
+        "platform": "instagram",
+        "handle": handle,
+        "drive_folder_url": folder_url,
     }
 
 
