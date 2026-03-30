@@ -534,12 +534,6 @@
     <input id="brandInput" type="text" placeholder="Brand name" />
     <button class="btn-primary" id="getProductsBtn" onclick="getProducts()">Get Products</button>
   </div>
-  <!-- Drive form -->
-  <div class="header-form" id="form-drive" style="display:none">
-    <input id="driveUrlInput"   type="url"  placeholder="Google Drive folder URL (must be public)" style="flex:2;min-width:260px" />
-    <input id="driveBrandInput" type="text" placeholder="Brand name" style="flex:1;min-width:150px" />
-    <button class="btn-primary" id="getDriveBtn" onclick="getDriveFiles()">Get Files</button>
-  </div>
 </header>
 
 <!-- ── Tab bar ── -->
@@ -583,6 +577,19 @@
 
 <!-- ══════════ TAB: Google Drive Folders ══════════ -->
 <div class="tab-panel" id="tab-drive">
+
+  <!-- Drive input form — lives inside the tab -->
+  <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <input id="driveUrlInput" type="url"
+      placeholder="Google Drive folder URL (must be public)"
+      style="flex:2;min-width:260px;padding:9px 13px;border:1px solid var(--border);border-radius:7px;font-size:.88rem;outline:none;background:var(--bg)"
+      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
+    <input id="driveBrandInput" type="text"
+      placeholder="Brand name"
+      style="flex:1;min-width:150px;padding:9px 13px;border:1px solid var(--border);border-radius:7px;font-size:.88rem;outline:none;background:var(--bg)"
+      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
+    <button class="btn-primary" id="getDriveBtn" onclick="getDriveFiles()">Get Files</button>
+  </div>
 
   <div id="drive-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
     <div class="spinner" id="drive-statusSpinner" style="display:none"></div>
@@ -659,10 +666,6 @@
     });
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.getElementById(`tab-${name}`).classList.add('active');
-
-    // Swap header form
-    document.getElementById('form-scraper').style.display = name === 'scraper' ? 'flex' : 'none';
-    document.getElementById('form-drive').style.display   = name === 'drive'   ? 'flex' : 'none';
 
     activeTab = name;
     updateActionBar();
