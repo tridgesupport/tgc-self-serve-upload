@@ -30,6 +30,7 @@ from drive_client import (
     upload_media_bytes,
     PARENT_FOLDER_ID,
 )
+from drive_scraper import scrape_drive, extract_drive_id
 from imagekit_client import fetch_all_imagekit_files, upload_to_imagekit
 from scraper import detect_and_scrape
 
@@ -153,7 +154,7 @@ async def scrape_endpoint(req: ScrapeRequest):
         raise HTTPException(
             status_code=404,
             detail=f"This website couldn't be scraped after {SCRAPE_MAX_RETRIES} attempts. "
-                   "It may not be a Shopify or WooCommerce store, or the product API may be private.",
+                   "It may not be a Shopify or WordPress store, or the product API may be private.",
         )
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -228,6 +229,61 @@ async def scrape_endpoint(req: ScrapeRequest):
         "platform": platform,
         "count": len(products),
         "drive_folder_url": folder_url,
+    }
+
+
+# ---------------------------------------------------------------------------
+# POST /api/scrape-drive
+# ---------------------------------------------------------------------------
+
+@app.post("/api/scrape-drive")
+async def scrape_drive_endpoint(req: ScrapeRequest):
+    """
+    Scrape media from a public Google Drive folder or file URL.
+    Downloads files, uploads to a new Drive folder, returns product list.
+    """
+    # Quick URL validation before doing any work
+    drive_id, id_type = extract_drive_id(req.url)
+    if not drive_id:
+        raise HTTPException(
+            status_code=400,
+            detail="That doesn't look like a valid Google Drive URL. "
+                   "Please paste a folder link (drive.google.com/drive/folders/...) "
+                   "or a file link (drive.google.com/file/d/...).",
+        )
+
+    try:
+        products, status, folder_url = await asyncio.get_event_loop().run_in_executor(
+            _executor,
+            scrape_drive,
+            req.url,
+            req.brand,
+            PARENT_FOLDER_ID,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=408,
+            detail="The Drive download timed out. Try a folder with fewer files.",
+        )
+
+    error_messages = {
+        "invalid_url": "That doesn't look like a valid Google Drive URL.",
+        "not_public": (
+            "This Google Drive folder or file is not publicly accessible. "
+            "Please set sharing to 'Anyone with the link can view' and try again."
+        ),
+        "empty": "No image or video files were found at that Drive URL.",
+        "error": "Something went wrong while accessing that Drive folder. Please try again.",
+    }
+
+    if status != "ok":
+        raise HTTPException(status_code=400, detail=error_messages.get(status, "Unknown error."))
+
+    return {
+        "products": products,
+        "count": len(products),
+        "drive_folder_url": folder_url,
+        "platform": "google_drive",
     }
 
 

@@ -528,10 +528,17 @@
 <!-- ── Header ── -->
 <header>
   <h1>TGC Upload</h1>
-  <div class="header-form" id="scraperForm">
+  <!-- Scraper form -->
+  <div class="header-form" id="form-scraper">
     <input id="urlInput"   type="url"  placeholder="Brand website URL (e.g. https://example.myshopify.com)" />
     <input id="brandInput" type="text" placeholder="Brand name" />
     <button class="btn-primary" id="getProductsBtn" onclick="getProducts()">Get Products</button>
+  </div>
+  <!-- Drive form -->
+  <div class="header-form" id="form-drive" style="display:none">
+    <input id="driveUrlInput"   type="url"  placeholder="Google Drive folder URL (must be public)" style="flex:2;min-width:260px" />
+    <input id="driveBrandInput" type="text" placeholder="Brand name" style="flex:1;min-width:150px" />
+    <button class="btn-primary" id="getDriveBtn" onclick="getDriveFiles()">Get Files</button>
   </div>
 </header>
 
@@ -562,10 +569,6 @@
     <div id="productGrid"></div>
   </main>
 
-  <div id="actionBar">
-    <span id="selectionSummary">No items selected</span>
-    <button id="pushBtn" disabled onclick="pushToStorage()">Push to Storage</button>
-  </div>
 
 </div><!-- /tab-scraper -->
 
@@ -580,11 +583,31 @@
 
 <!-- ══════════ TAB: Google Drive Folders ══════════ -->
 <div class="tab-panel" id="tab-drive">
-  <div class="coming-soon">
-    <div class="icon">📁</div>
-    <h2>Google Drive Folders</h2>
-    <p>Import product assets directly from shared Google Drive folders. Coming soon.</p>
+
+  <div id="drive-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
+    <div class="spinner" id="drive-statusSpinner" style="display:none"></div>
+    <span id="drive-statusText"></span>
   </div>
+
+  <div id="drive-driveLinkBar" style="display:none;padding:9px 32px;background:#fff8e1;border-bottom:1px solid #ffe082;font-size:.84rem;color:#5a4000">
+    Assets saved to Google Drive: <a id="drive-driveLinkAnchor" href="#" target="_blank" style="color:#2d6a4f;font-weight:600">Open folder</a>
+  </div>
+
+  <main>
+    <div id="drive-emptyState" style="text-align:center;padding:80px 20px;color:var(--muted)">
+      <div class="icon" style="font-size:3rem;margin-bottom:12px">📁</div>
+      <p>Paste a public Google Drive folder URL above and click <strong>Get Files</strong>.</p>
+      <p style="font-size:.82rem;margin-top:10px;color:var(--muted)">The folder must be set to <em>"Anyone with the link can view"</em>.</p>
+    </div>
+    <div id="drive-grid"></div>
+  </main>
+
+</div>
+
+<!-- ── Shared action bar (position:fixed, always visible when items selected) ── -->
+<div id="actionBar">
+  <span id="selectionSummary">No items selected</span>
+  <button id="pushBtn" disabled onclick="pushToStorage()">Push to Storage</button>
 </div>
 
 <!-- ── Result modal ── -->
@@ -612,10 +635,15 @@
 <script>
   const API_BASE = window.API_BASE_URL || '';
 
-  // ── State ──
-  let products = [];
-  let productState = [];
-  let selectedAssets = new Map();
+  // ── Per-tab state ──
+  const tabStates = {
+    scraper: { productState: [], selectedAssets: new Map() },
+    drive:   { productState: [], selectedAssets: new Map() },
+  };
+  let activeTab = 'scraper';
+
+  // Helpers to get current tab's state
+  const S = () => tabStates[activeTab];
 
   // Lightbox state
   let lbProdIdx = -1;
@@ -624,24 +652,32 @@
   // ── Tab switching ──
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach((b, i) => {
-      b.classList.toggle('active', b.textContent.toLowerCase().includes(name) ||
-        (name === 'scraper' && i === 0) ||
-        (name === 'instagram' && i === 1) ||
-        (name === 'drive' && i === 2));
+      b.classList.toggle('active',
+        (name === 'scraper'   && i === 0) ||
+        (name === 'drive'     && i === 1) ||
+        (name === 'instagram' && i === 2));
     });
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.getElementById(`tab-${name}`).classList.add('active');
 
-    // Show/hide header form — only relevant for scraper tab
-    document.getElementById('scraperForm').style.display = name === 'scraper' ? 'flex' : 'none';
+    // Swap header form
+    document.getElementById('form-scraper').style.display = name === 'scraper' ? 'flex' : 'none';
+    document.getElementById('form-drive').style.display   = name === 'drive'   ? 'flex' : 'none';
+
+    activeTab = name;
+    updateActionBar();
   }
 
-  // ── Status helpers ──
+  // ── Status helpers (tab-aware) ──
   function showStatus(msg, type = 'info', loading = false) {
-    const bar = document.getElementById('statusBar');
-    document.getElementById('statusSpinner').style.display = loading ? 'block' : 'none';
-    document.getElementById('statusText').textContent = msg;
-    bar.className = type;
+    const prefix = activeTab === 'drive' ? 'drive-' : '';
+    const bar     = document.getElementById(`${prefix}statusBar`);
+    const spinner = document.getElementById(`${prefix}statusSpinner`);
+    const text    = document.getElementById(`${prefix}statusText`);
+    if (!bar) return;
+    bar.style.cssText = `display:flex;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center;background:${type==='error'?'#fdecea':type==='success'?'#e8f4f0':'#e8f4f0'};color:${type==='error'?'#c0392b':'#1b4332'}`;
+    spinner.style.display = loading ? 'block' : 'none';
+    text.textContent = msg;
   }
 
   function setLoading(btn, loading, label) {
@@ -651,7 +687,32 @@
       : label;
   }
 
-  // ── Get Products ──
+  // ── Shared function to handle a scrape API response ──
+  function handleScrapeResponse(data, emptyId, linkBarId, linkAnchorId, gridId) {
+    const products = data.products || [];
+    S().productState = products.map(p => ({
+      ...p,
+      assets: p.assets.map(a => ({ ...a })),
+      level_1: '', level_2: '', level_3: '', level_4: '', level_5: ''
+    }));
+    S().selectedAssets.clear();
+
+    if (data.drive_folder_url) {
+      document.getElementById(linkAnchorId).href = data.drive_folder_url;
+      document.getElementById(linkBarId).style.display = 'block';
+    }
+
+    const platform = data.platform || '';
+    const label = platform === 'google_drive' ? 'Google Drive' : platform;
+    showStatus(
+      `Found ${products.length} file${products.length !== 1 ? 's' : ''}${label ? ' (' + label + ')' : ''}. Click images to preview, use ✓ to select.`,
+      'success'
+    );
+    renderGrid(gridId);
+    updateActionBar();
+  }
+
+  // ── Get Products (scraper tab) ──
   async function getProducts() {
     const url   = document.getElementById('urlInput').value.trim();
     const brand = document.getElementById('brandInput').value.trim();
@@ -663,13 +724,12 @@
     document.getElementById('driveLinkBar').style.display = 'none';
     document.getElementById('emptyState').style.display = 'none';
     document.getElementById('productGrid').innerHTML = '';
-    selectedAssets.clear();
+    S().selectedAssets.clear();
     updateActionBar();
 
     try {
       const res  = await fetch(`${API_BASE}/api/scrape`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, brand }),
       });
       const data = await res.json();
@@ -677,44 +737,64 @@
       if (!res.ok) {
         showStatus(data.detail || "This website couldn't be scraped.", 'error');
         document.getElementById('emptyState').style.display = 'block';
-        setLoading(btn, false, 'Get Products');
-        return;
+        setLoading(btn, false, 'Get Products'); return;
       }
 
-      products     = data.products || [];
-      productState = products.map(p => ({
-        ...p,
-        assets: p.assets.map(a => ({ ...a })),
-        level_1: '', level_2: '', level_3: '', level_4: '', level_5: ''
-      }));
-
-      if (data.drive_folder_url) {
-        document.getElementById('driveLinkAnchor').href = data.drive_folder_url;
-        document.getElementById('driveLinkBar').style.display = 'block';
-      }
-
-      showStatus(`Found ${products.length} products (${data.platform}). Click images to preview, use ✓ to select.`, 'success');
-      renderGrid();
-
+      handleScrapeResponse(data, 'emptyState', 'driveLinkBar', 'driveLinkAnchor', 'productGrid');
     } catch (err) {
       showStatus(`Network error: ${err.message}`, 'error');
       document.getElementById('emptyState').style.display = 'block';
     }
-
     setLoading(btn, false, 'Get Products');
   }
 
+  // ── Get Drive Files (drive tab) ──
+  async function getDriveFiles() {
+    const url   = document.getElementById('driveUrlInput').value.trim();
+    const brand = document.getElementById('driveBrandInput').value.trim();
+    if (!url || !brand) { showStatus('Please enter both a Drive URL and a brand name.', 'error'); return; }
+
+    const btn = document.getElementById('getDriveBtn');
+    setLoading(btn, true, 'Downloading…');
+    showStatus('Downloading from Google Drive and uploading to your folder — this may take several minutes for large folders…', 'info', true);
+    document.getElementById('drive-driveLinkBar').style.display = 'none';
+    document.getElementById('drive-emptyState').style.display = 'none';
+    document.getElementById('drive-grid').innerHTML = '';
+    S().selectedAssets.clear();
+    updateActionBar();
+
+    try {
+      const res  = await fetch(`${API_BASE}/api/scrape-drive`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, brand }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showStatus(data.detail || "Couldn't access that Google Drive link.", 'error');
+        document.getElementById('drive-emptyState').style.display = 'block';
+        setLoading(btn, false, 'Get Files'); return;
+      }
+
+      handleScrapeResponse(data, 'drive-emptyState', 'drive-driveLinkBar', 'drive-driveLinkAnchor', 'drive-grid');
+    } catch (err) {
+      showStatus(`Network error: ${err.message}`, 'error');
+      document.getElementById('drive-emptyState').style.display = 'block';
+    }
+    setLoading(btn, false, 'Get Files');
+  }
+
   // ── Render Grid ──
-  function renderGrid() {
-    const grid = document.getElementById('productGrid');
+  function renderGrid(gridId = 'productGrid') {
+    const grid = document.getElementById(gridId);
     grid.innerHTML = '';
 
-    productState.forEach((prod, pIdx) => {
+    S().productState.forEach((prod, pIdx) => {
       const card = document.createElement('div');
       card.className = 'product-card';
       card.id = `card-${pIdx}`;
 
-      const selCount = prod.assets.filter((_, ai) => selectedAssets.get(`${pIdx}_${ai}`)).length;
+      const selCount = prod.assets.filter((_, ai) => S().selectedAssets.get(`${pIdx}_${ai}`)).length;
 
       card.innerHTML = `
         <div class="card-header">
@@ -736,47 +816,47 @@
             <div class="field-group">
               <label>Product Name</label>
               <input type="text" value="${escHtml(prod.product_name)}"
-                oninput="productState[${pIdx}].product_name = this.value" />
+                oninput="S().productState[${pIdx}].product_name = this.value" />
             </div>
             <div class="field-group">
               <label>Description</label>
-              <textarea oninput="productState[${pIdx}].description = this.value">${escHtml(prod.description)}</textarea>
+              <textarea oninput="S().productState[${pIdx}].description = this.value">${escHtml(prod.description)}</textarea>
             </div>
             <div class="field-group">
               <label>Price</label>
               <input type="text" value="${escHtml(prod.price)}"
-                oninput="productState[${pIdx}].price = this.value" style="max-width:150px" />
+                oninput="S().productState[${pIdx}].price = this.value" style="max-width:150px" />
             </div>
             <div class="levels-row">
               <div class="level-field">
                 <label>Level 1 <span class="req-badge">REQ</span></label>
                 <input type="text" id="l1-${pIdx}" placeholder="e.g. Hampers"
                   value="${escHtml(prod.level_1)}"
-                  oninput="productState[${pIdx}].level_1=this.value;validateLevels(${pIdx});updateActionBar()" />
+                  oninput="S().productState[${pIdx}].level_1=this.value;validateLevels(${pIdx});updateActionBar()" />
               </div>
               <div class="level-field">
                 <label>Level 2 <span class="req-badge">REQ</span></label>
                 <input type="text" id="l2-${pIdx}" placeholder="e.g. Occasion"
                   value="${escHtml(prod.level_2)}"
-                  oninput="productState[${pIdx}].level_2=this.value;validateLevels(${pIdx});updateActionBar()" />
+                  oninput="S().productState[${pIdx}].level_2=this.value;validateLevels(${pIdx});updateActionBar()" />
               </div>
               <div class="level-field">
                 <label>Level 3</label>
                 <input type="text" id="l3-${pIdx}" placeholder="Sub category"
                   value="${escHtml(prod.level_3)}"
-                  oninput="productState[${pIdx}].level_3=this.value" />
+                  oninput="S().productState[${pIdx}].level_3=this.value" />
               </div>
               <div class="level-field">
                 <label>Level 4</label>
                 <input type="text" id="l4-${pIdx}" placeholder="Sub category"
                   value="${escHtml(prod.level_4)}"
-                  oninput="productState[${pIdx}].level_4=this.value" />
+                  oninput="S().productState[${pIdx}].level_4=this.value" />
               </div>
               <div class="level-field">
                 <label>Level 5</label>
                 <input type="text" id="l5-${pIdx}" placeholder="Sub category"
                   value="${escHtml(prod.level_5)}"
-                  oninput="productState[${pIdx}].level_5=this.value" />
+                  oninput="S().productState[${pIdx}].level_5=this.value" />
               </div>
             </div>
           </div>
@@ -787,7 +867,7 @@
   }
 
   function renderThumb(pIdx, aIdx, asset) {
-    const sel     = selectedAssets.get(`${pIdx}_${aIdx}`) ? 'selected' : '';
+    const sel     = S().selectedAssets.get(`${pIdx}_${aIdx}`) ? 'selected' : '';
     const isVideo = asset.type === 'video';
 
     const media = isVideo
@@ -819,7 +899,7 @@
   }
 
   function renderLightboxMedia() {
-    const prod    = productState[lbProdIdx];
+    const prod    = S().productState[lbProdIdx];
     const asset   = prod.assets[lbAssetIdx];
     const box     = document.getElementById('lb-media-box');
     const counter = document.getElementById('lb-counter');
@@ -838,7 +918,7 @@
   }
 
   function lbNav(dir) {
-    const prod = productState[lbProdIdx];
+    const prod = S().productState[lbProdIdx];
     const next = lbAssetIdx + dir;
     if (next < 0 || next >= prod.assets.length) return;
     lbAssetIdx = next;
@@ -864,20 +944,20 @@
   // ── Selection ──
   function toggleAsset(pIdx, aIdx) {
     const key  = `${pIdx}_${aIdx}`;
-    const next = !(selectedAssets.get(key) || false);
-    selectedAssets.set(key, next);
+    const next = !(S().selectedAssets.get(key) || false);
+    S().selectedAssets.set(key, next);
     document.getElementById(`thumb-${pIdx}-${aIdx}`)?.classList.toggle('selected', next);
     updateCardHighlight(pIdx);
-    const prod = productState[pIdx];
-    const allSel = prod.assets.every((_, ai) => selectedAssets.get(`${pIdx}_${ai}`));
+    const prod = S().productState[pIdx];
+    const allSel = prod.assets.every((_, ai) => S().selectedAssets.get(`${pIdx}_${ai}`));
     const cb = document.getElementById(`selectAll-${pIdx}`);
     if (cb) cb.checked = allSel;
     updateActionBar();
   }
 
   function toggleSelectAll(pIdx, checked) {
-    productState[pIdx].assets.forEach((_, aIdx) => {
-      selectedAssets.set(`${pIdx}_${aIdx}`, checked);
+    S().productState[pIdx].assets.forEach((_, aIdx) => {
+      S().selectedAssets.set(`${pIdx}_${aIdx}`, checked);
       document.getElementById(`thumb-${pIdx}-${aIdx}`)?.classList.toggle('selected', checked);
     });
     updateCardHighlight(pIdx);
@@ -885,27 +965,27 @@
   }
 
   function updateCardHighlight(pIdx) {
-    const hasAny = productState[pIdx].assets.some((_, ai) => selectedAssets.get(`${pIdx}_${ai}`));
+    const hasAny = S().productState[pIdx].assets.some((_, ai) => S().selectedAssets.get(`${pIdx}_${ai}`));
     document.getElementById(`card-${pIdx}`)?.classList.toggle('has-selection', hasAny);
   }
 
   // ── Validation ──
   function validateLevels(pIdx) {
-    const prod    = productState[pIdx];
-    const hasSel  = prod.assets.some((_, ai) => selectedAssets.get(`${pIdx}_${ai}`));
+    const prod   = S().productState[pIdx];
+    const hasSel = prod.assets.some((_, ai) => S().selectedAssets.get(`${pIdx}_${ai}`));
     if (!hasSel) return;
     document.getElementById(`l1-${pIdx}`)?.classList.toggle('invalid', !prod.level_1.trim());
     document.getElementById(`l2-${pIdx}`)?.classList.toggle('invalid', !prod.level_2.trim());
   }
 
   function getSelectedCount() {
-    return Array.from(selectedAssets.values()).filter(Boolean).length;
+    return Array.from(S().selectedAssets.values()).filter(Boolean).length;
   }
 
   function canPush() {
     if (getSelectedCount() === 0) return false;
-    return productState.every((prod, pIdx) => {
-      const hasSel = prod.assets.some((_, ai) => selectedAssets.get(`${pIdx}_${ai}`));
+    return S().productState.every((prod, pIdx) => {
+      const hasSel = prod.assets.some((_, ai) => S().selectedAssets.get(`${pIdx}_${ai}`));
       return !hasSel || (prod.level_1.trim() && prod.level_2.trim());
     });
   }
@@ -916,15 +996,17 @@
       count === 0 ? 'No items selected'
                   : `<strong>${count}</strong> asset${count !== 1 ? 's' : ''} selected`;
     document.getElementById('pushBtn').disabled = !canPush();
-    productState.forEach((_, pIdx) => validateLevels(pIdx));
+    S().productState.forEach((_, pIdx) => validateLevels(pIdx));
   }
 
   // ── Push to Storage ──
   async function pushToStorage() {
-    const brand = document.getElementById('brandInput').value.trim();
-    const selectedProducts = productState
+    const brand = activeTab === 'drive'
+      ? document.getElementById('driveBrandInput').value.trim()
+      : document.getElementById('brandInput').value.trim();
+    const selectedProducts = S().productState
       .map((prod, pIdx) => {
-        const sel = prod.assets.filter((_, ai) => selectedAssets.get(`${pIdx}_${ai}`));
+        const sel = prod.assets.filter((_, ai) => S().selectedAssets.get(`${pIdx}_${ai}`));
         if (!sel.length) return null;
         return { product_name: prod.product_name, price: prod.price, description: prod.description,
           assets: sel, level_1: prod.level_1||'', level_2: prod.level_2||'',
@@ -991,6 +1073,9 @@
 
   ['urlInput','brandInput'].forEach(id =>
     document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') getProducts(); })
+  );
+  ['driveUrlInput','driveBrandInput'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') getDriveFiles(); })
   );
 </script>
 </body>
