@@ -240,7 +240,7 @@ def read_sheet_data(spreadsheet_url: str) -> tuple[list[dict], str | None]:
 
 IMAGEKIT_SHEET_NAME = "ImageKit_Library"
 IMAGEKIT_HEADERS = [
-    "product_name", "description", "price", "brand",
+    "product_name", "product_description", "price", "brand",
     "level_1", "level_2", "level_3", "level_4", "level_5",
     "imagekit_url", "file_name", "file_id",
 ]

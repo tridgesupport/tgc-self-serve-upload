@@ -970,7 +970,7 @@
             </div>
             <div class="field-group">
               <label>Description</label>
-              <textarea oninput="S().productState[${pIdx}].description = this.value">${escHtml(prod.description)}</textarea>
+              <textarea oninput="S().productState[${pIdx}].product_description = this.value">${escHtml(prod.product_description)}</textarea>
             </div>
             <div class="field-group">
               <label>Price</label>
@@ -1162,7 +1162,7 @@
       .map((prod, pIdx) => {
         const sel = prod.assets.filter((_, ai) => S().selectedAssets.get(`${pIdx}_${ai}`));
         if (!sel.length) return null;
-        return { product_name: prod.product_name, price: prod.price, description: prod.description,
+        return { product_name: prod.product_name, price: prod.price, product_description: prod.product_description,
           assets: sel, level_1: prod.level_1||'', level_2: prod.level_2||'',
           level_3: prod.level_3||'', level_4: prod.level_4||'', level_5: prod.level_5||'' };
       }).filter(Boolean);

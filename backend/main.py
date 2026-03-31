@@ -61,7 +61,7 @@ class AssetIn(BaseModel):
 class ProductIn(BaseModel):
     product_name: str
     price: str
-    description: str
+    product_description: str
     assets: list[AssetIn]
     brand: Optional[str] = ""
     level_1: Optional[str] = ""
@@ -173,7 +173,7 @@ async def scrape_endpoint(req: ScrapeRequest):
         row: dict = {
             "product_name": prod["product_name"],
             "price": prod["price"],
-            "description": prod["description"],
+            "product_description": prod["product_description"],
             "brand": req.brand,
         }
         for i, asset in enumerate(prod["assets"][:4]):
@@ -184,7 +184,7 @@ async def scrape_endpoint(req: ScrapeRequest):
     # Upload CSV to Drive (works when user OAuth credentials are configured)
     if drive_ok and folder_id and csv_rows:
         csv_headers = [
-            "product_name", "price", "description", "brand",
+            "product_name", "price", "product_description", "brand",
             "asset_1_url", "asset_1_type",
             "asset_2_url", "asset_2_type",
             "asset_3_url", "asset_3_type",
@@ -318,7 +318,7 @@ async def scrape_instagram_endpoint(req: InstagramRequest):
             row = {
                 "product_name": prod.get("product_name", ""),
                 "price": prod.get("price", ""),
-                "description": prod.get("description", ""),
+                "product_description": prod.get("product_description", ""),
                 "brand": req.brand,
                 "post_url": prod.get("post_url", ""),
             }
@@ -328,7 +328,7 @@ async def scrape_instagram_endpoint(req: InstagramRequest):
             csv_rows.append(row)
 
         csv_headers = [
-            "product_name", "price", "description", "brand", "post_url",
+            "product_name", "price", "product_description", "brand", "post_url",
             "asset_1_url", "asset_1_type", "asset_2_url", "asset_2_type",
             "asset_3_url", "asset_3_type", "asset_4_url", "asset_4_type",
         ]
@@ -385,12 +385,15 @@ async def read_sheet_endpoint():
             ).strip()
             if not url:
                 break
-            # Convert Google Drive share links → thumbnail URLs ImageKit can fetch
+            atype = (row.get(f"asset_{i}_type") or row.get(f"asset{i}_type") or "image").strip().lower()
+            # Convert Google Drive share links to directly fetchable URLs
             drive_m = re.search(r"/file/d/([a-zA-Z0-9_-]+)", url)
             if drive_m:
                 file_id = drive_m.group(1)
-                url = f"https://drive.google.com/thumbnail?id={file_id}&sz=w1200"
-            atype = (row.get(f"asset_{i}_type") or row.get(f"asset{i}_type") or "image").strip().lower()
+                if atype == "video":
+                    url = f"https://drive.google.com/uc?id={file_id}&export=download"
+                else:
+                    url = f"https://drive.google.com/thumbnail?id={file_id}&sz=w1200"
             if atype not in ("image", "video"):
                 atype = "image"
             assets.append({"url": url, "type": atype})
@@ -401,7 +404,7 @@ async def read_sheet_endpoint():
         products.append({
             "product_name": row.get("product_name") or row.get("name") or "",
             "brand":        row.get("brand") or "",
-            "description":  row.get("description") or row.get("product_description") or row.get("desc") or "",
+            "product_description": row.get("product_description") or row.get("description") or row.get("desc") or "",
             "price":        row.get("price") or "",
             "level_1":      row.get("level_1") or row.get("level1") or "",
             "level_2":      row.get("level_2") or row.get("level2") or "",
@@ -443,7 +446,7 @@ async def push_to_storage(req: PushRequest):
 
         metadata = {
             "product_name": product.product_name,
-            "description": product.description,
+            "product_description": product.product_description,
             "price": product.price,
             "brand": effective_brand,
             "level_1": product.level_1 or "",
@@ -474,7 +477,7 @@ async def push_to_storage(req: PushRequest):
                         "imagekit_url": result.get("url", ""),
                         "file_id":      result.get("fileId", ""),
                         "product_name": product.product_name,
-                        "description":  product.description,
+                        "product_description": product.product_description,
                         "price":        product.price,
                         "brand":        effective_brand,
                         "level_1":      product.level_1 or "",
@@ -494,7 +497,7 @@ async def push_to_storage(req: PushRequest):
             sheet_rows = [
                 {
                     "product_name": u["product_name"],
-                    "description":  u["description"],
+                    "product_description": u["product_description"],
                     "price":        u["price"],
                     "brand":        u["brand"],
                     "level_1":      u["level_1"],
