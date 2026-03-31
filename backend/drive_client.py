@@ -131,6 +131,61 @@ def upload_csv_to_drive(
 
 
 # ---------------------------------------------------------------------------
+# Google Sheets — read vendor upload sheet
+# ---------------------------------------------------------------------------
+
+def read_sheet_data(spreadsheet_url: str) -> tuple[list[dict], str | None]:
+    """
+    Read all rows from a Google Sheet using the service account / user creds.
+    Returns (rows, error_detail).  Each row is a dict keyed by normalised
+    header name (lowercase, spaces → underscores).
+    """
+    import re as _re
+    m = _re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", spreadsheet_url)
+    if not m:
+        return [], "Could not extract a spreadsheet ID from that URL."
+
+    spreadsheet_id = m.group(1)
+
+    try:
+        svc    = _sheets()
+        result = svc.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id,
+            range="A1:Z5000",
+        ).execute()
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "not found" in msg or "404" in msg:
+            return [], "Spreadsheet not found. Check the URL."
+        if "permission" in msg or "403" in msg:
+            return [], (
+                "Access denied. Make sure the service account email has been "
+                "added as an Editor on the sheet."
+            )
+        return [], str(exc)
+
+    values = result.get("values", [])
+    if not values:
+        return [], "The sheet appears to be empty."
+
+    # Normalise headers: lowercase, strip, spaces/hyphens → underscores
+    raw_headers = values[0]
+    headers = [
+        h.strip().lower().replace(" ", "_").replace("-", "_")
+        for h in raw_headers
+    ]
+
+    rows = []
+    for raw_row in values[1:]:
+        if not any(c.strip() for c in raw_row):
+            continue  # skip blank rows
+        padded = raw_row + [""] * max(0, len(headers) - len(raw_row))
+        rows.append(dict(zip(headers, padded)))
+
+    return rows, None
+
+
+# ---------------------------------------------------------------------------
 # Google Sheets export — persistent ImageKit library
 # ---------------------------------------------------------------------------
 

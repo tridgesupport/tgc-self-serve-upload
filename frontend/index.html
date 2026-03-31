@@ -541,6 +541,7 @@
   <button class="tab-btn active" data-tab="scraper"   onclick="switchTab('scraper')">Product Scraper</button>
   <button class="tab-btn"        data-tab="drive"     onclick="switchTab('drive')">Google Drive Folders</button>
   <button class="tab-btn"        data-tab="instagram" onclick="switchTab('instagram')">Instagram Handles</button>
+  <button class="tab-btn"        data-tab="vendor"    onclick="switchTab('vendor')">Vendor Uploads</button>
   <button class="tab-btn"        data-tab="igpost"    onclick="switchTab('igpost')">View as IG Post</button>
 </div>
 
@@ -599,6 +600,37 @@
       <p style="font-size:.82rem;margin-top:10px;color:var(--muted)">Only <em>public</em> accounts can be scraped. Up to 20 recent posts will be fetched.</p>
     </div>
     <div id="instagram-grid"></div>
+  </main>
+
+</div>
+
+<!-- ══════════ TAB: Vendor Uploads ══════════ -->
+<div class="tab-panel" id="tab-vendor">
+
+  <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <input id="vendorSheetInput" type="url"
+      placeholder="Google Sheet URL"
+      style="flex:2;min-width:300px;padding:9px 13px;border:1px solid var(--border);border-radius:7px;font-size:.88rem;outline:none;background:var(--bg)"
+      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
+    <input id="vendorBrandInput" type="text"
+      placeholder="Brand name"
+      style="flex:1;min-width:150px;padding:9px 13px;border:1px solid var(--border);border-radius:7px;font-size:.88rem;outline:none;background:var(--bg)"
+      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
+    <button class="btn-primary" id="getVendorBtn" onclick="getVendorData()">Get Data</button>
+  </div>
+
+  <div id="vendor-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
+    <div class="spinner" id="vendor-statusSpinner" style="display:none"></div>
+    <span id="vendor-statusText"></span>
+  </div>
+
+  <main>
+    <div id="vendor-emptyState" style="text-align:center;padding:80px 20px;color:var(--muted)">
+      <div class="icon" style="font-size:3rem;margin-bottom:12px">📋</div>
+      <p>Paste a Google Sheet URL above and click <strong>Get Data</strong>.</p>
+      <p style="font-size:.82rem;margin-top:10px;color:var(--muted)">The sheet must have columns: <em>product_name, asset_1_url, asset_2_url…</em> and the service account must be an Editor.</p>
+    </div>
+    <div id="vendor-grid"></div>
   </main>
 
 </div>
@@ -684,6 +716,7 @@
     scraper:   { productState: [], selectedAssets: new Map() },
     drive:     { productState: [], selectedAssets: new Map() },
     instagram: { productState: [], selectedAssets: new Map() },
+    vendor:    { productState: [], selectedAssets: new Map() },
   };
   let activeTab = 'scraper';
 
@@ -712,7 +745,7 @@
 
   // ── Status helpers (tab-aware) ──
   function showStatus(msg, type = 'info', loading = false) {
-    const prefix = activeTab === 'drive' ? 'drive-' : activeTab === 'instagram' ? 'instagram-' : '';
+    const prefix = activeTab === 'drive' ? 'drive-' : activeTab === 'instagram' ? 'instagram-' : activeTab === 'vendor' ? 'vendor-' : '';
     const bar     = document.getElementById(`${prefix}statusBar`);
     const spinner = document.getElementById(`${prefix}statusSpinner`);
     const text    = document.getElementById(`${prefix}statusText`);
@@ -863,6 +896,57 @@
       document.getElementById('instagram-emptyState').style.display = 'block';
     }
     setLoading(btn, false, 'Get Posts');
+  }
+
+  // ── Get Vendor Data (vendor tab) ──
+  async function getVendorData() {
+    const sheetUrl = document.getElementById('vendorSheetInput').value.trim();
+    const brand    = document.getElementById('vendorBrandInput').value.trim();
+    if (!sheetUrl || !brand) { showStatus('Please enter both a Google Sheet URL and a brand name.', 'error'); return; }
+
+    const btn = document.getElementById('getVendorBtn');
+    setLoading(btn, true, 'Loading…');
+    showStatus('Reading sheet data…', 'info', true);
+    document.getElementById('vendor-emptyState').style.display = 'none';
+    document.getElementById('vendor-grid').innerHTML = '';
+    S().selectedAssets.clear();
+    updateActionBar();
+
+    try {
+      const res  = await fetch(`${API_BASE}/api/read-sheet`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheet_url: sheetUrl, brand }),
+      });
+
+      let data;
+      try { data = await res.json(); }
+      catch { data = { detail: `Server error (HTTP ${res.status}).` }; }
+
+      if (!res.ok) {
+        showStatus(data.detail || "Couldn't read that sheet.", 'error');
+        document.getElementById('vendor-emptyState').style.display = 'block';
+        setLoading(btn, false, 'Get Data'); return;
+      }
+
+      // vendor tab has no drive link bar — pass null-safe ids
+      S().productState = (data.products || []).map(p => ({
+        ...p,
+        assets: p.assets.map(a => ({ ...a })),
+        level_1: p.level_1 || '', level_2: p.level_2 || '',
+        level_3: p.level_3 || '', level_4: p.level_4 || '', level_5: p.level_5 || '',
+      }));
+      S().selectedAssets.clear();
+      showStatus(
+        `Loaded ${data.count} product${data.count !== 1 ? 's' : ''} from the sheet. Click images to preview, use ✓ to select.`,
+        'success'
+      );
+      renderGrid('vendor-grid');
+      updateActionBar();
+    } catch (err) {
+      showStatus('Could not reach the server. Please try again.', 'error');
+      document.getElementById('vendor-emptyState').style.display = 'block';
+    }
+    setLoading(btn, false, 'Get Data');
   }
 
   // ── Render Grid ──
@@ -1086,7 +1170,9 @@
       ? document.getElementById('driveBrandInput').value.trim()
       : activeTab === 'instagram'
         ? document.getElementById('igBrandInput').value.trim()
-        : document.getElementById('brandInput').value.trim();
+        : activeTab === 'vendor'
+          ? document.getElementById('vendorBrandInput').value.trim()
+          : document.getElementById('brandInput').value.trim();
     const selectedProducts = S().productState
       .map((prod, pIdx) => {
         const sel = prod.assets.filter((_, ai) => S().selectedAssets.get(`${pIdx}_${ai}`));
@@ -1162,6 +1248,9 @@
   );
   ['igHandleInput','igBrandInput'].forEach(id =>
     document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') getInstagramPosts(); })
+  );
+  ['vendorSheetInput','vendorBrandInput'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') getVendorData(); })
   );
 </script>
 </body>

@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from drive_client import (
     append_to_imagekit_sheet,
     create_brand_folder,
+    read_sheet_data,
     upload_csv_to_drive,
     PARENT_FOLDER_ID,
 )
@@ -76,6 +77,11 @@ class PushRequest(BaseModel):
 
 class InstagramRequest(BaseModel):
     handle: str
+    brand: str
+
+
+class SheetRequest(BaseModel):
+    sheet_url: str
     brand: str
 
 
@@ -338,6 +344,77 @@ async def scrape_instagram_endpoint(req: InstagramRequest):
         "handle": handle,
         "drive_folder_url": folder_url,
     }
+
+
+# ---------------------------------------------------------------------------
+# POST /api/read-sheet  (Vendor Uploads tab)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/read-sheet")
+async def read_sheet_endpoint(req: SheetRequest):
+    """
+    Read a Google Sheet and return products in the standard format.
+    Expected columns (case-insensitive, spaces ok):
+      product_name, description, price,
+      level_1 … level_5,
+      asset_1_url … asset_N_url, asset_1_type … asset_N_type  (type optional)
+    """
+    rows, error = await asyncio.get_event_loop().run_in_executor(
+        _executor, read_sheet_data, req.sheet_url
+    )
+
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+    if not rows:
+        raise HTTPException(status_code=404, detail="No data rows found in the sheet.")
+
+    products = []
+    for row in rows:
+        # Collect assets — support asset_1_url / asset1_url / image_1 etc.
+        assets = []
+        for i in range(1, 20):
+            url = (
+                row.get(f"asset_{i}_url") or
+                row.get(f"asset{i}_url") or
+                row.get(f"image_{i}_url") or
+                row.get(f"image{i}_url") or
+                row.get(f"asset_{i}") or
+                ""
+            ).strip()
+            if not url:
+                break
+            atype = (
+                row.get(f"asset_{i}_type") or
+                row.get(f"asset{i}_type") or
+                "image"
+            ).strip().lower()
+            if atype not in ("image", "video"):
+                atype = "image"
+            assets.append({"url": url, "type": atype})
+
+        if not assets:
+            continue  # skip rows with no asset URLs
+
+        products.append({
+            "product_name": row.get("product_name") or row.get("name") or "",
+            "description":  row.get("description") or row.get("desc") or "",
+            "price":        row.get("price") or "",
+            "level_1":      row.get("level_1") or row.get("level1") or "",
+            "level_2":      row.get("level_2") or row.get("level2") or "",
+            "level_3":      row.get("level_3") or row.get("level3") or "",
+            "level_4":      row.get("level_4") or row.get("level4") or "",
+            "level_5":      row.get("level_5") or row.get("level5") or "",
+            "assets":       assets,
+        })
+
+    if not products:
+        raise HTTPException(
+            status_code=404,
+            detail="No rows with asset URLs found. Check that columns are named "
+                   "asset_1_url, asset_2_url, etc."
+        )
+
+    return {"products": products, "count": len(products), "platform": "sheet"}
 
 
 # ---------------------------------------------------------------------------
