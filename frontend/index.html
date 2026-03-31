@@ -385,6 +385,19 @@
     }
     #pushBtn:hover:not(:disabled) { background: var(--accent-hover); }
     #pushBtn:disabled { opacity: .45; cursor: not-allowed; }
+    #selectAllBtn {
+      padding: 9px 20px;
+      background: transparent;
+      color: var(--accent);
+      border: 1.5px solid var(--accent);
+      border-radius: 8px;
+      font-size: .88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, opacity .15s;
+    }
+    #selectAllBtn:hover:not(:disabled) { background: rgba(45,106,79,.08); }
+    #selectAllBtn:disabled { opacity: .35; cursor: not-allowed; }
 
     /* ── Result modal ── */
     #resultModal {
@@ -676,7 +689,8 @@
 <!-- ── Shared action bar (position:fixed, always visible when items selected) ── -->
 <div id="actionBar">
   <span id="selectionSummary">No items selected</span>
-  <button id="pushBtn" disabled onclick="pushToStorage()">Push to Storage</button>
+  <button id="selectAllBtn" onclick="selectAllAssets()">Select All</button>
+  <button id="pushBtn" disabled onclick="pushToStorage()">Approve</button>
 </div>
 
 <!-- ── Result modal ── -->
@@ -1157,12 +1171,34 @@
     });
   }
 
+  function selectAllAssets() {
+    const total = S().productState.reduce((n, p) => n + p.assets.length, 0);
+    const selected = getSelectedCount();
+    const check = selected < total; // select all if not all selected, otherwise deselect all
+    S().productState.forEach((prod, pIdx) => {
+      prod.assets.forEach((_, aIdx) => {
+        S().selectedAssets.set(`${pIdx}_${aIdx}`, check);
+        document.getElementById(`thumb-${pIdx}-${aIdx}`)?.classList.toggle('selected', check);
+      });
+      const cb = document.getElementById(`selectAll-${pIdx}`);
+      if (cb) cb.checked = check;
+      updateCardHighlight(pIdx);
+    });
+    updateActionBar();
+  }
+
   function updateActionBar() {
     const count = getSelectedCount();
+    const total = S().productState.reduce((n, p) => n + p.assets.length, 0);
     document.getElementById('selectionSummary').innerHTML =
       count === 0 ? 'No items selected'
                   : `<strong>${count}</strong> asset${count !== 1 ? 's' : ''} selected`;
     document.getElementById('pushBtn').disabled = !canPush();
+    const selAllBtn = document.getElementById('selectAllBtn');
+    if (selAllBtn) {
+      selAllBtn.textContent = (count > 0 && count === total) ? 'Deselect All' : 'Select All';
+      selAllBtn.disabled = total === 0;
+    }
     S().productState.forEach((_, pIdx) => validateLevels(pIdx));
   }
 
