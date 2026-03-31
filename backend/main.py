@@ -5,6 +5,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -372,8 +373,13 @@ async def push_to_storage(req: PushRequest):
 
         for i, asset in enumerate(product.assets):
             url = asset.url
-            raw_ext = url.split(".")[-1].split("?")[0][:5]
-            ext = f".{raw_ext}" if raw_ext else ".jpg"
+            # Robustly extract extension from URL path only (ignore query string)
+            url_path = urlparse(url).path          # e.g. "/files/image.jpg" or "/thumbnail"
+            _, ext = os.path.splitext(url_path)    # e.g. ".jpg" or ""
+            # Validate: must be a real image/video extension
+            if ext.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif",
+                                   ".avif", ".mp4", ".mov", ".webm"}:
+                ext = ".jpg" if asset.type != "video" else ".mp4"
             filename = sanitize(f"{brand_safe}_{product.product_name}_{i+1}") + ext
 
             result = upload_to_imagekit(url, filename, brand_safe, metadata)
@@ -396,7 +402,7 @@ async def push_to_storage(req: PushRequest):
                     }
                 )
             else:
-                errors.append(f"Failed to upload: {filename}")
+                errors.append(f"Failed: {filename} (check Render logs for detail)")
 
     # --- Part 4: Append newly uploaded assets to the persistent ImageKit sheet ---
     sheets_url = None

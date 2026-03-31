@@ -19,10 +19,18 @@ def upload_to_imagekit(
     Download image_url and upload it to ImageKit with custom metadata.
     Returns the ImageKit response dict on success, None on failure.
     """
+    if not IK_PRIVATE_KEY:
+        print("[ImageKit] IMAGEKIT_PRIVATE_KEY is not set — skipping upload")
+        return None
+
     try:
-        dl = requests.get(image_url, timeout=30)
+        dl = requests.get(image_url, timeout=30, allow_redirects=True)
         dl.raise_for_status()
         content_type = dl.headers.get("content-type", "image/jpeg").split(";")[0].strip()
+
+        if not dl.content:
+            print(f"[ImageKit] Downloaded 0 bytes from {image_url}")
+            return None
 
         resp = requests.post(
             UPLOAD_URL,
@@ -40,11 +48,14 @@ def upload_to_imagekit(
         if resp.status_code == 200:
             return resp.json()
 
-        print(f"ImageKit upload failed ({resp.status_code}): {resp.text}")
+        print(f"[ImageKit] Upload failed ({resp.status_code}) for {filename}: {resp.text}")
         return None
 
+    except requests.exceptions.HTTPError as exc:
+        print(f"[ImageKit] Download HTTP error for {image_url}: {exc}")
+        return None
     except Exception as exc:
-        print(f"ImageKit upload error for {filename}: {exc}")
+        print(f"[ImageKit] Unexpected error for {filename}: {exc}")
         return None
 
 
