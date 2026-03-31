@@ -32,13 +32,16 @@ def upload_to_imagekit(
             print(f"[ImageKit] Downloaded 0 bytes from {image_url}")
             return None
 
+        # Strip empty strings — ImageKit rejects empty values for defined fields
+        metadata_clean = {k: v for k, v in metadata.items() if v != "" and v is not None}
+
         resp = requests.post(
             UPLOAD_URL,
             auth=HTTPBasicAuth(IK_PRIVATE_KEY, ""),
             data={
                 "fileName": filename,
                 "folder": f"/{folder}",
-                "customMetadata": json.dumps(metadata),
+                "customMetadata": json.dumps(metadata_clean),
                 "useUniqueFileName": "false",
             },
             files={"file": (filename, dl.content, content_type)},
