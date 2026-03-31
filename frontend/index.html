@@ -846,7 +846,10 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ handle, brand }),
       });
-      const data = await res.json();
+
+      let data;
+      try { data = await res.json(); }
+      catch { data = { detail: `Server error (HTTP ${res.status}). Check that the service is running and APIFY_API_KEY is set.` }; }
 
       if (!res.ok) {
         showStatus(data.detail || "Couldn't fetch posts from Instagram.", 'error');
@@ -856,7 +859,7 @@
 
       handleScrapeResponse(data, 'instagram-emptyState', 'instagram-driveLinkBar', 'instagram-driveLinkAnchor', 'instagram-grid');
     } catch (err) {
-      showStatus(`Network error: ${err.message}`, 'error');
+      showStatus('Could not reach the server. Please check your connection and try again.', 'error');
       document.getElementById('instagram-emptyState').style.display = 'block';
     }
     setLoading(btn, false, 'Get Posts');

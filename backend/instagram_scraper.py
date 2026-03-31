@@ -86,8 +86,6 @@ def scrape_instagram(handle: str, max_posts: int = MAX_POSTS) -> tuple[list[dict
       assets        — list of {url, type}
       post_url      — permalink to the IG post
     """
-    from apify_client import ApifyClient
-
     handle = handle.lstrip("@").strip()
     if not handle:
         return [], "not_found"
@@ -98,6 +96,7 @@ def scrape_instagram(handle: str, max_posts: int = MAX_POSTS) -> tuple[list[dict
         return [], "no_api_key"
 
     try:
+        from apify_client import ApifyClient
         client = ApifyClient(api_key)
 
         run_input = {
@@ -113,10 +112,13 @@ def scrape_instagram(handle: str, max_posts: int = MAX_POSTS) -> tuple[list[dict
 
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
 
+    except ImportError:
+        print("[Instagram/Apify] apify-client not installed")
+        return [], "error"
     except Exception as exc:
         msg = str(exc).lower()
         print(f"[Instagram/Apify] Error for @{handle}: {exc}")
-        if "not found" in msg or "doesn't exist" in msg or "user" in msg:
+        if "not found" in msg or "doesn't exist" in msg or "no user" in msg:
             return [], "not_found"
         if "private" in msg or "login" in msg:
             return [], "private"

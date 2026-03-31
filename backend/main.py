@@ -308,16 +308,18 @@ async def scrape_instagram_endpoint(req: InstagramRequest):
         raise HTTPException(status_code=400, detail="Please enter an Instagram handle.")
 
     try:
-        products, status = await asyncio.get_event_loop().run_in_executor(
-            _executor,
-            scrape_instagram,
-            handle,
+        products, status = await asyncio.wait_for(
+            asyncio.get_event_loop().run_in_executor(_executor, scrape_instagram, handle),
+            timeout=300,  # 5 minutes — Apify runs can be slow
         )
     except asyncio.TimeoutError:
         raise HTTPException(
             status_code=408,
-            detail="Instagram scraping timed out. Please try again.",
+            detail="Instagram scraping timed out after 5 minutes. Please try again.",
         )
+    except Exception as exc:
+        print(f"[Instagram] Unexpected error: {exc}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again.")
 
     error_messages = {
         "not_found":    f"No Instagram account found for @{handle}. Check the handle and try again.",
