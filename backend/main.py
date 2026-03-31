@@ -401,7 +401,7 @@ async def read_sheet_endpoint():
         products.append({
             "product_name": row.get("product_name") or row.get("name") or "",
             "brand":        row.get("brand") or "",
-            "description":  row.get("description") or row.get("desc") or "",
+            "description":  row.get("description") or row.get("product_description") or row.get("desc") or "",
             "price":        row.get("price") or "",
             "level_1":      row.get("level_1") or row.get("level1") or "",
             "level_2":      row.get("level_2") or row.get("level2") or "",
