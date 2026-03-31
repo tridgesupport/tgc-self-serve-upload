@@ -172,9 +172,23 @@ async def scrape_endpoint(req: ScrapeRequest):
             row[f"asset_{i+1}_type"] = asset["type"]
         csv_rows.append(row)
 
-    # Note: CSV upload to Drive is skipped — service accounts cannot write file
-    # content to personal Drive folders (storageQuotaExceeded). The brand folder
-    # is still created for organisational purposes.
+    # Upload CSV to Drive (works when user OAuth credentials are configured)
+    if drive_ok and folder_id and csv_rows:
+        csv_headers = [
+            "product_name", "price", "description", "brand",
+            "asset_1_url", "asset_1_type",
+            "asset_2_url", "asset_2_type",
+            "asset_3_url", "asset_3_type",
+            "asset_4_url", "asset_4_type",
+        ]
+        try:
+            upload_csv_to_drive(
+                csv_rows, csv_headers,
+                f"{brand_safe}_{timestamp}_catalog.csv",
+                folder_id,
+            )
+        except Exception as exc:
+            print(f"[Drive] CSV upload error: {exc}")
 
     return {
         "products": products,

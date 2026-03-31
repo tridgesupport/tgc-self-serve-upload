@@ -15,12 +15,43 @@ DRIVE_SCOPES = [
 ]
 
 
-def _get_credentials():
+# ---------------------------------------------------------------------------
+# Credentials — user OAuth preferred, service account as fallback
+# ---------------------------------------------------------------------------
+
+def _get_user_credentials():
+    """
+    Build OAuth2 credentials from the three GOOGLE_* env vars.
+    Returns None if any of the vars are missing (caller falls back to SA).
+    """
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request as AuthRequest
+
+    client_id     = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+    refresh_token = os.environ.get("GOOGLE_REFRESH_TOKEN", "").strip()
+
+    if not (client_id and client_secret and refresh_token):
+        return None
+
+    creds = Credentials(
+        token=None,
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=DRIVE_SCOPES,
+    )
+    creds.refresh(AuthRequest())
+    return creds
+
+
+def _get_sa_credentials():
+    """Service account credentials — fallback when OAuth not configured."""
     creds_str = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
     if not creds_str:
         raise EnvironmentError(
-            "GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set. "
-            "Paste the entire service account JSON as a single-line string."
+            "Neither GOOGLE_REFRESH_TOKEN nor GOOGLE_SERVICE_ACCOUNT_JSON is set."
         )
     creds_info = json.loads(creds_str)
     return service_account.Credentials.from_service_account_info(
@@ -28,12 +59,20 @@ def _get_credentials():
     )
 
 
+def _best_credentials():
+    """Return user OAuth creds if configured, otherwise service account creds."""
+    creds = _get_user_credentials()
+    if creds is not None:
+        return creds
+    return _get_sa_credentials()
+
+
 def _drive():
-    return build("drive", "v3", credentials=_get_credentials())
+    return build("drive", "v3", credentials=_best_credentials())
 
 
 def _sheets():
-    return build("sheets", "v4", credentials=_get_credentials())
+    return build("sheets", "v4", credentials=_best_credentials())
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +172,6 @@ def append_to_imagekit_sheet(rows: list[dict], folder_id: str) -> str:
     sheet_id = _find_sheet(drive_svc, IMAGEKIT_SHEET_NAME, folder_id)
 
     if not sheet_id:
-        # First run — create the sheet and write headers
         file_meta = {
             "name": IMAGEKIT_SHEET_NAME,
             "mimeType": "application/vnd.google-apps.spreadsheet",
