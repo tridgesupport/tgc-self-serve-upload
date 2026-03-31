@@ -136,17 +136,49 @@ def upload_csv_to_drive(
 
 def read_sheet_data(spreadsheet_url: str) -> tuple[list[dict], str | None]:
     """
-    Read all rows from a Google Sheet using the service account / user creds.
+    Read all rows from a Google Sheet.
+    First tries the public CSV export URL (works for 'Anyone with the link' sheets).
+    Falls back to the Sheets API with service account / user creds.
     Returns (rows, error_detail).  Each row is a dict keyed by normalised
     header name (lowercase, spaces → underscores).
     """
     import re as _re
+    import csv as _csv
+    import requests as _requests
+
     m = _re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", spreadsheet_url)
     if not m:
         return [], "Could not extract a spreadsheet ID from that URL."
 
     spreadsheet_id = m.group(1)
 
+    # --- Try public CSV export first (no auth required) ---
+    csv_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv"
+    try:
+        resp = _requests.get(csv_url, timeout=30, allow_redirects=True)
+        if resp.status_code == 200 and resp.content:
+            text = resp.content.decode("utf-8-sig")  # strip BOM if present
+            reader = _csv.DictReader(text.splitlines())
+            raw_headers = reader.fieldnames or []
+            headers = [
+                h.strip().lower().replace(" ", "_").replace("-", "_")
+                for h in raw_headers
+            ]
+            rows = []
+            for raw_row in reader:
+                normalised = {
+                    h.strip().lower().replace(" ", "_").replace("-", "_"): v
+                    for h, v in raw_row.items()
+                }
+                if not any(v.strip() for v in normalised.values()):
+                    continue
+                rows.append(normalised)
+            if rows:
+                return rows, None
+    except Exception:
+        pass  # fall through to Sheets API
+
+    # --- Fallback: Sheets API ---
     try:
         svc    = _sheets()
         result = svc.spreadsheets().values().get(
@@ -159,8 +191,8 @@ def read_sheet_data(spreadsheet_url: str) -> tuple[list[dict], str | None]:
             return [], "Spreadsheet not found. Check the URL."
         if "permission" in msg or "403" in msg:
             return [], (
-                "Access denied. Make sure the service account email has been "
-                "added as an Editor on the sheet."
+                "Access denied. Share the sheet as 'Anyone with the link' "
+                "or add the service account as a Viewer."
             )
         return [], str(exc)
 
@@ -168,7 +200,6 @@ def read_sheet_data(spreadsheet_url: str) -> tuple[list[dict], str | None]:
     if not values:
         return [], "The sheet appears to be empty."
 
-    # Normalise headers: lowercase, strip, spaces/hyphens → underscores
     raw_headers = values[0]
     headers = [
         h.strip().lower().replace(" ", "_").replace("-", "_")
@@ -178,7 +209,7 @@ def read_sheet_data(spreadsheet_url: str) -> tuple[list[dict], str | None]:
     rows = []
     for raw_row in values[1:]:
         if not any(c.strip() for c in raw_row):
-            continue  # skip blank rows
+            continue
         padded = raw_row + [""] * max(0, len(headers) - len(raw_row))
         rows.append(dict(zip(headers, padded)))
 
