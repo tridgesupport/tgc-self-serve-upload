@@ -84,7 +84,7 @@ class InstagramRequest(BaseModel):
 # Sheet URL is fixed — stored in env var, not entered by users
 VENDOR_SHEET_URL = os.environ.get(
     "VENDOR_SHEET_URL",
-    "https://docs.google.com/spreadsheets/d/1_TqzNolDHdHGECOhLVHpu2cpldcXJwjr7FUUQjuuZwE/edit#gid=0",
+    "https://docs.google.com/spreadsheets/d/1_TqzNolDHdHGECOhLVHpu2cpldcXJwjr7FUUQjuuZwE/edit?gid=67972522#gid=67972522",
 )
 
 
@@ -385,6 +385,11 @@ async def read_sheet_endpoint():
             ).strip()
             if not url:
                 break
+            # Convert Google Drive share links → thumbnail URLs ImageKit can fetch
+            drive_m = re.search(r"/file/d/([a-zA-Z0-9_-]+)", url)
+            if drive_m:
+                file_id = drive_m.group(1)
+                url = f"https://drive.google.com/thumbnail?id={file_id}&sz=w1200"
             atype = (row.get(f"asset_{i}_type") or row.get(f"asset{i}_type") or "image").strip().lower()
             if atype not in ("image", "video"):
                 atype = "image"
