@@ -1,5 +1,4 @@
 import asyncio
-import mimetypes
 import os
 import re
 import sys
@@ -7,7 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional
 
-import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,20 +25,12 @@ from drive_client import (
     append_to_imagekit_sheet,
     create_brand_folder,
     upload_csv_to_drive,
-    upload_media_bytes,
     PARENT_FOLDER_ID,
 )
 from drive_scraper import scrape_drive, extract_drive_id
 from imagekit_client import upload_to_imagekit
 from instagram_scraper import scrape_instagram
 from scraper import detect_and_scrape
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
-    )
-}
 
 app = FastAPI(title="TGC Self-Serve Upload")
 
@@ -95,17 +85,6 @@ class InstagramRequest(BaseModel):
 def sanitize(name: str) -> str:
     return re.sub(r"[^\w\-]", "_", name).strip("_")
 
-
-def download_bytes(url: str) -> tuple[bytes, str]:
-    resp = requests.get(url, headers=HEADERS, stream=True, timeout=30)
-    resp.raise_for_status()
-    mime = resp.headers.get("content-type", "image/jpeg").split(";")[0].strip()
-    return resp.content, mime
-
-
-def ext_from_mime(mime: str) -> str:
-    ext = mimetypes.guess_extension(mime) or ".jpg"
-    return ".jpg" if ext == ".jpe" else ext
 
 
 # ---------------------------------------------------------------------------
@@ -179,36 +158,17 @@ async def scrape_endpoint(req: ScrapeRequest):
     csv_rows: list[dict] = []
 
     for prod in products:
-        drive_asset_urls: list[str] = []
-
-        for i, asset in enumerate(prod["assets"]):
-            try:
-                data, mime = download_bytes(asset["url"])
-                ext = ext_from_mime(mime)
-                filename = sanitize(f"{brand_safe}_{prod['product_name']}_{i+1}") + ext
-
-                if drive_ok and folder_id:
-                    drive_url = upload_media_bytes(data, filename, folder_id, mime)
-                    drive_asset_urls.append(drive_url)
-                else:
-                    drive_asset_urls.append(asset["url"])
-
-            except Exception as exc:
-                print(f"[Drive] Media upload error: {exc}")
-                drive_asset_urls.append(asset["url"])
-
-        # Build CSV row
+        # Use original source URLs in the CSV — service accounts cannot upload
+        # file content to personal Drive folders (no storage quota).
         row: dict = {
             "product_name": prod["product_name"],
             "price": prod["price"],
             "description": prod["description"],
             "brand": req.brand,
         }
-        for i, url in enumerate(drive_asset_urls[:4]):
-            row[f"asset_{i+1}_url"] = url
-            row[f"asset_{i+1}_type"] = (
-                prod["assets"][i]["type"] if i < len(prod["assets"]) else ""
-            )
+        for i, asset in enumerate(prod["assets"][:4]):
+            row[f"asset_{i+1}_url"]  = asset["url"]
+            row[f"asset_{i+1}_type"] = asset["type"]
         csv_rows.append(row)
 
     # Upload CSV to Drive
