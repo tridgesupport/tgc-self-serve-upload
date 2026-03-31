@@ -152,8 +152,12 @@ def read_sheet_data(spreadsheet_url: str) -> tuple[list[dict], str | None]:
 
     spreadsheet_id = m.group(1)
 
+    # Extract gid from URL fragment (#gid=123) or query string (?gid=123)
+    gid_m = _re.search(r"[#&?]gid=(\d+)", spreadsheet_url)
+    gid = gid_m.group(1) if gid_m else "0"
+
     # --- Try public CSV export first (no auth required) ---
-    csv_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv&gid={gid}"
     try:
         resp = _requests.get(csv_url, timeout=30, allow_redirects=True)
         if resp.status_code == 200 and resp.content:

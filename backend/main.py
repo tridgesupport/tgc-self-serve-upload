@@ -84,7 +84,7 @@ class InstagramRequest(BaseModel):
 # Sheet URL is fixed — stored in env var, not entered by users
 VENDOR_SHEET_URL = os.environ.get(
     "VENDOR_SHEET_URL",
-    "https://docs.google.com/spreadsheets/d/1_TqzNolDHdHGECOhLVHpu2cpldcXJwjr7FUUQjuuZwE/edit",
+    "https://docs.google.com/spreadsheets/d/1_TqzNolDHdHGECOhLVHpu2cpldcXJwjr7FUUQjuuZwE/edit#gid=0",
 )
 
 
