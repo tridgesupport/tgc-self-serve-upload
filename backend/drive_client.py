@@ -158,29 +158,43 @@ def read_sheet_data(spreadsheet_url: str) -> tuple[list[dict], str | None]:
 
     # --- Try public CSV export first (no auth required) ---
     csv_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv&gid={gid}"
+    csv_fail_reason = None
     try:
         resp = _requests.get(csv_url, timeout=30, allow_redirects=True)
+        print(f"[Sheet CSV] status={resp.status_code} url={csv_url} content_type={resp.headers.get('content-type','')}")
         if resp.status_code == 200 and resp.content:
-            text = resp.content.decode("utf-8-sig")  # strip BOM if present
-            reader = _csv.DictReader(text.splitlines())
-            raw_headers = reader.fieldnames or []
-            headers = [
-                h.strip().lower().replace(" ", "_").replace("-", "_")
-                for h in raw_headers
-            ]
-            rows = []
-            for raw_row in reader:
-                normalised = {
-                    h.strip().lower().replace(" ", "_").replace("-", "_"): v
-                    for h, v in raw_row.items()
-                }
-                if not any(v.strip() for v in normalised.values()):
-                    continue
-                rows.append(normalised)
-            if rows:
-                return rows, None
-    except Exception:
-        pass  # fall through to Sheets API
+            # Guard against being redirected to a login/error HTML page
+            content_type = resp.headers.get("content-type", "")
+            if "html" in content_type:
+                csv_fail_reason = f"CSV export returned HTML (sheet may not be public). content-type={content_type}"
+                print(f"[Sheet CSV] {csv_fail_reason}")
+            else:
+                text = resp.content.decode("utf-8-sig")  # strip BOM if present
+                reader = _csv.DictReader(text.splitlines())
+                raw_headers = reader.fieldnames or []
+                headers = [
+                    h.strip().lower().replace(" ", "_").replace("-", "_")
+                    for h in raw_headers
+                ]
+                rows = []
+                for raw_row in reader:
+                    normalised = {
+                        h.strip().lower().replace(" ", "_").replace("-", "_"): v
+                        for h, v in raw_row.items()
+                    }
+                    if not any(v.strip() for v in normalised.values()):
+                        continue
+                    rows.append(normalised)
+                if rows:
+                    return rows, None
+                csv_fail_reason = f"CSV parsed but 0 non-empty rows found. headers={headers[:5]}"
+                print(f"[Sheet CSV] {csv_fail_reason}")
+        else:
+            csv_fail_reason = f"HTTP {resp.status_code}"
+            print(f"[Sheet CSV] non-200 response: {csv_fail_reason}")
+    except Exception as exc:
+        csv_fail_reason = str(exc)
+        print(f"[Sheet CSV] exception: {csv_fail_reason}")
 
     # --- Fallback: Sheets API ---
     try:
@@ -194,10 +208,10 @@ def read_sheet_data(spreadsheet_url: str) -> tuple[list[dict], str | None]:
         if "not found" in msg or "404" in msg:
             return [], "Spreadsheet not found. Check the URL."
         if "permission" in msg or "403" in msg:
-            return [], (
-                "Access denied. Share the sheet as 'Anyone with the link' "
-                "or add the service account as a Viewer."
-            )
+            detail = f"Access denied via Sheets API."
+            if csv_fail_reason:
+                detail += f" CSV export also failed: {csv_fail_reason}"
+            return [], detail
         return [], str(exc)
 
     values = result.get("values", [])
