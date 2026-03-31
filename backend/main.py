@@ -259,7 +259,7 @@ async def scrape_drive_endpoint(req: ScrapeRequest):
         )
 
     try:
-        products, status, folder_url = await asyncio.get_event_loop().run_in_executor(
+        products, status, folder_url, error_detail = await asyncio.get_event_loop().run_in_executor(
             _executor,
             scrape_drive,
             req.url,
@@ -271,19 +271,23 @@ async def scrape_drive_endpoint(req: ScrapeRequest):
             status_code=408,
             detail="The Drive download timed out. Try a folder with fewer files.",
         )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {exc}")
 
-    error_messages = {
+    base_messages = {
         "invalid_url": "That doesn't look like a valid Google Drive URL.",
         "not_public": (
-            "This Google Drive folder or file is not publicly accessible. "
-            "Please set sharing to 'Anyone with the link can view' and try again."
+            "This Google Drive folder is not accessible. "
+            "Set sharing to 'Anyone with the link can view', or share it directly with the service account email."
         ),
         "empty": "No image or video files were found at that Drive URL.",
-        "error": "Something went wrong while accessing that Drive folder. Please try again.",
+        "error": "Could not access that Drive folder.",
     }
 
     if status != "ok":
-        raise HTTPException(status_code=400, detail=error_messages.get(status, "Unknown error."))
+        base = base_messages.get(status, "Unknown error.")
+        detail = f"{base} — {error_detail}" if error_detail else base
+        raise HTTPException(status_code=400, detail=detail)
 
     return {
         "products": products,
