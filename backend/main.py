@@ -324,6 +324,7 @@ async def scrape_instagram_endpoint(req: InstagramRequest):
         "private":      f"@{handle} is a private account. Only public profiles can be scraped.",
         "rate_limited": "Instagram has temporarily rate-limited this request. Please wait a few minutes and try again.",
         "empty":        f"No posts found on @{handle}.",
+        "no_api_key":   "APIFY_API_KEY is not set. Please add it to your environment variables.",
         "error":        "Something went wrong while accessing Instagram. Please try again.",
     }
 

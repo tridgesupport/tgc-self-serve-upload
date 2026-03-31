@@ -1,6 +1,6 @@
 fastapi==0.111.0
 gdown==5.1.0
-instaloader==4.13.1
+apify-client==1.8.1
 uvicorn[standard]==0.29.0
 python-dotenv==1.0.1
 requests==2.31.0

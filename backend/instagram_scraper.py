@@ -1,135 +1,153 @@
 """
-Instagram scraper using instaloader.
-Works on public profiles without login.
-Respects rate limits with cooldown pauses.
+Instagram scraper using the Apify Instagram Scraper actor.
+Requires APIFY_API_KEY environment variable.
+Returns the last 20 posts for a handle, sorted by date descending.
 """
 
-import time
-import instaloader
+import os
+from datetime import datetime, timezone
 
 MAX_POSTS = 20
-COOLDOWN_EVERY = 10   # pause after every N posts
-COOLDOWN_SECS = 20    # seconds to sleep during cooldown
+# Fetch a few extra so sorting+slicing works even if Apify returns slightly fewer
+FETCH_LIMIT = 30
+
+
+def _parse_timestamp(ts: str | None) -> datetime:
+    """Parse ISO-8601 timestamp from Apify; returns epoch if missing."""
+    if not ts:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    try:
+        # Handle both 'Z' suffix and '+00:00'
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except Exception:
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _extract_assets(item: dict) -> list[dict]:
+    """
+    Extract all image/video assets from an Apify Instagram item.
+    Handles single images, videos/reels, and carousels (Sidecar).
+    """
+    assets: list[dict] = []
+    post_type = item.get("type", "")
+
+    if post_type == "Sidecar":
+        # Carousel — iterate child posts first
+        child_posts = item.get("childPosts") or []
+        sidecar_images = item.get("images") or []
+
+        if child_posts:
+            for child in child_posts:
+                video_url = child.get("videoUrl")
+                display_url = child.get("displayUrl")
+                if video_url:
+                    assets.append({"url": video_url, "type": "video"})
+                elif display_url:
+                    assets.append({"url": display_url, "type": "image"})
+        elif sidecar_images:
+            # Some actor versions return a flat list of image URLs
+            for img_url in sidecar_images:
+                if img_url:
+                    assets.append({"url": img_url, "type": "image"})
+        else:
+            # Fallback to main display URL
+            display_url = item.get("displayUrl")
+            if display_url:
+                assets.append({"url": display_url, "type": "image"})
+
+    elif post_type == "Video" or item.get("videoUrl"):
+        video_url = item.get("videoUrl")
+        display_url = item.get("displayUrl")
+        if video_url:
+            assets.append({"url": video_url, "type": "video"})
+        if display_url:
+            assets.append({"url": display_url, "type": "image"})
+
+    else:
+        # Single image
+        display_url = item.get("displayUrl")
+        if display_url:
+            assets.append({"url": display_url, "type": "image"})
+
+    return assets
 
 
 def scrape_instagram(handle: str, max_posts: int = MAX_POSTS) -> tuple[list[dict], str]:
     """
-    Scrape the most recent posts from a public Instagram profile.
+    Scrape the most recent posts from a public Instagram profile via Apify.
 
     Returns (products, status) where status is one of:
-      'ok' | 'not_found' | 'private' | 'rate_limited' | 'empty' | 'error'
+      'ok' | 'not_found' | 'private' | 'rate_limited' | 'empty' | 'error' | 'no_api_key'
 
-    Each product has:
+    Each product:
       product_name  — blank (user fills in)
       price         — blank
       description   — post caption
-      assets        — list of {url, type} covering all carousel images/videos
+      assets        — list of {url, type}
       post_url      — permalink to the IG post
     """
+    from apify_client import ApifyClient
+
     handle = handle.lstrip("@").strip()
     if not handle:
         return [], "not_found"
 
-    L = instaloader.Instaloader(
-        download_pictures=False,
-        download_videos=False,
-        download_video_thumbnails=False,
-        download_geotags=False,
-        download_comments=False,
-        save_metadata=False,
-        compress_json=False,
-        quiet=True,
-    )
+    api_key = os.environ.get("APIFY_API_KEY", "").strip()
+    if not api_key:
+        print("[Instagram/Apify] APIFY_API_KEY not set")
+        return [], "no_api_key"
 
-    # Load profile
     try:
-        profile = instaloader.Profile.from_username(L.context, handle)
-    except instaloader.exceptions.ProfileNotExistsException:
-        return [], "not_found"
-    except instaloader.exceptions.LoginRequiredException:
-        return [], "private"
+        client = ApifyClient(api_key)
+
+        run_input = {
+            "directUrls": [f"https://www.instagram.com/{handle}/"],
+            "resultsType": "posts",
+            "resultsLimit": FETCH_LIMIT,
+        }
+
+        run = client.actor("apify/instagram-scraper").call(run_input=run_input)
+
+        if not run or not run.get("defaultDatasetId"):
+            return [], "error"
+
+        items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
+
     except Exception as exc:
         msg = str(exc).lower()
+        print(f"[Instagram/Apify] Error for @{handle}: {exc}")
+        if "not found" in msg or "doesn't exist" in msg or "user" in msg:
+            return [], "not_found"
         if "private" in msg or "login" in msg:
             return [], "private"
-        if any(k in msg for k in ("rate", "429", "blocked", "too many")):
+        if any(k in msg for k in ("rate", "429", "too many", "blocked")):
             return [], "rate_limited"
-        print(f"[Instagram] Profile load error for @{handle}: {exc}")
+        if "unauthorized" in msg or "invalid token" in msg or "api key" in msg:
+            return [], "no_api_key"
         return [], "error"
 
-    if profile.is_private:
-        return [], "private"
+    if not items:
+        return [], "empty"
+
+    # Sort by timestamp descending (most recent first), take top max_posts
+    items.sort(key=lambda x: _parse_timestamp(x.get("timestamp")), reverse=True)
+    items = items[:max_posts]
 
     products: list[dict] = []
-    post_count = 0
+    for item in items:
+        assets = _extract_assets(item)
+        if not assets:
+            continue
 
-    try:
-        for post in profile.get_posts():
-            if post_count >= max_posts:
-                break
+        post_url = item.get("url") or f"https://www.instagram.com/{handle}/"
+        caption  = (item.get("caption") or "").replace("\n", " ").strip()
 
-            assets = _extract_assets(post)
-
-            products.append(
-                {
-                    "product_name": "",
-                    "price": "",
-                    "description": (post.caption or "").replace("\n", " ").strip(),
-                    "assets": assets,
-                    "post_url": f"https://www.instagram.com/p/{post.shortcode}/",
-                }
-            )
-
-            post_count += 1
-
-            # Cooldown every N posts to avoid rate-limiting
-            if post_count % COOLDOWN_EVERY == 0 and post_count < max_posts:
-                print(f"[Instagram] Cooldown after {post_count} posts…")
-                time.sleep(COOLDOWN_SECS)
-
-    except instaloader.exceptions.LoginRequiredException:
-        return products, "private" if not products else "ok"
-    except Exception as exc:
-        msg = str(exc).lower()
-        if any(k in msg for k in ("rate", "429", "blocked", "too many")):
-            # Return whatever we got before being blocked
-            return products, "ok" if products else "rate_limited"
-        print(f"[Instagram] Scrape error for @{handle}: {exc}")
-        return products, "ok" if products else "error"
+        products.append({
+            "product_name": "",
+            "price": "",
+            "description": caption,
+            "assets": assets,
+            "post_url": post_url,
+        })
 
     return (products, "ok") if products else ([], "empty")
-
-
-def _extract_assets(post) -> list[dict]:
-    """Return all image/video assets from a post (including carousel)."""
-    assets = []
-
-    try:
-        if post.typename == "GraphSidecar":
-            # Carousel — iterate each slide
-            for node in post.get_sidecar_nodes():
-                if node.is_video:
-                    if node.video_url:
-                        assets.append({"url": node.video_url, "type": "video"})
-                else:
-                    if node.display_url:
-                        assets.append({"url": node.display_url, "type": "image"})
-        elif post.is_video:
-            if post.video_url:
-                assets.append({"url": post.video_url, "type": "video"})
-            # Include thumbnail as a separate image asset
-            if post.url:
-                assets.append({"url": post.url, "type": "image"})
-        else:
-            if post.url:
-                assets.append({"url": post.url, "type": "image"})
-    except Exception as exc:
-        print(f"[Instagram] Asset extraction error: {exc}")
-        # Fallback: use whatever main URL is available
-        try:
-            if post.url:
-                assets.append({"url": post.url, "type": "image"})
-        except Exception:
-            pass
-
-    return assets
