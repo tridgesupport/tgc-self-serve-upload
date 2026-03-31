@@ -51,7 +51,9 @@ def create_brand_folder(brand: str, timestamp: str) -> tuple[str, str, str]:
         "mimeType": "application/vnd.google-apps.folder",
         "parents": [PARENT_FOLDER_ID],
     }
-    folder = _drive().files().create(body=metadata, fields="id,webViewLink").execute()
+    folder = _drive().files().create(
+        body=metadata, fields="id,webViewLink", supportsAllDrives=True
+    ).execute()
     return folder["id"], folder["webViewLink"], folder_name
 
 
@@ -65,7 +67,9 @@ def upload_media_bytes(
     """Upload raw bytes to a Drive folder. Returns the webViewLink."""
     metadata = {"name": filename, "parents": [folder_id]}
     media = MediaIoBaseUpload(io.BytesIO(data), mimetype=mime_type)
-    f = _drive().files().create(body=metadata, media_body=media, fields="webViewLink").execute()
+    f = _drive().files().create(
+        body=metadata, media_body=media, fields="webViewLink", supportsAllDrives=True
+    ).execute()
     return f["webViewLink"]
 
 
@@ -81,7 +85,9 @@ def upload_csv_to_drive(
     csv_bytes = buf.getvalue().encode("utf-8")
     metadata = {"name": filename, "parents": [folder_id]}
     media = MediaIoBaseUpload(io.BytesIO(csv_bytes), mimetype="text/csv")
-    f = _drive().files().create(body=metadata, media_body=media, fields="webViewLink").execute()
+    f = _drive().files().create(
+        body=metadata, media_body=media, fields="webViewLink", supportsAllDrives=True
+    ).execute()
     return f["webViewLink"]
 
 
@@ -105,7 +111,9 @@ def create_sheet_in_drive(
         "mimeType": "application/vnd.google-apps.spreadsheet",
         "parents": [folder_id],
     }
-    sheet_file = drive_svc.files().create(body=file_meta, fields="id,webViewLink").execute()
+    sheet_file = drive_svc.files().create(
+        body=file_meta, fields="id,webViewLink", supportsAllDrives=True
+    ).execute()
     spreadsheet_id = sheet_file["id"]
 
     if data_rows:

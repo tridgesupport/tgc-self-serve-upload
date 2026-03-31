@@ -1,15 +1,17 @@
 """
 Google Drive folder/file scraper.
 
-Strategy (in order):
-  1. Drive API (service account) — list + download files directly.
-     Works when the service account has been granted access OR when the
-     folder is shared with the service account email.
-  2. gdown fallback — for fully public "anyone with the link" folders that
-     the service account cannot see via the API.
+Strategy:
+  1. Use the Drive API (service account) to list files in the source folder.
+     Returns thumbnail URLs directly from source file IDs — NO re-upload needed,
+     since the files are already in Google Drive.
+  2. If the Drive API can't list the folder (permission denied), fall back to
+     gdown to download files, then re-upload them with supportsAllDrives=True
+     so they land in the Shared Drive (not the service account's personal storage).
 
-Returns product records with thumbnail URLs pointing to uploaded copies in
-the destination Drive folder.
+Public "anyone with the link" folders are accessible to the service account for
+listing/reading. The storage quota error only occurs when uploading to personal
+Drive — the API path avoids this entirely.
 """
 
 import io
@@ -25,9 +27,9 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".bmp", ".heic"
 VIDEO_EXTS = {".mp4", ".mov", ".webm", ".avi", ".m4v", ".mkv"}
 MEDIA_EXTS  = IMAGE_EXTS | VIDEO_EXTS
 
-BATCH_SIZE  = 20   # upload this many files before pausing
+BATCH_SIZE  = 20   # upload this many files before pausing (gdown fallback path)
 BATCH_PAUSE = 3    # seconds between batches
-MAX_FILES   = 200  # safety cap so we don't accidentally download huge folders
+MAX_FILES   = 200  # safety cap
 
 
 # ---------------------------------------------------------------------------
@@ -37,7 +39,6 @@ MAX_FILES   = 200  # safety cap so we don't accidentally download huge folders
 def extract_drive_id(url: str) -> tuple[str | None, str]:
     """
     Returns (id, type) where type is 'folder', 'file', or 'invalid'.
-    Handles all common Drive URL formats.
     """
     if not url:
         return None, "invalid"
@@ -66,10 +67,7 @@ def extract_drive_id(url: str) -> tuple[str | None, str]:
 # ---------------------------------------------------------------------------
 
 def _list_files_in_folder(drive_svc, folder_id: str) -> list[dict]:
-    """
-    List all non-trashed files directly inside folder_id using the Drive API.
-    Raises on permission / not-found errors so the caller can decide the status.
-    """
+    """List all non-trashed media files directly inside folder_id."""
     files = []
     page_token = None
     while True:
@@ -90,41 +88,21 @@ def _list_files_in_folder(drive_svc, folder_id: str) -> list[dict]:
     return files[:MAX_FILES]
 
 
-def _download_file_api(drive_svc, file_id: str, dest_path: str) -> None:
-    """Download a single Drive file to dest_path using the API."""
-    from googleapiclient.http import MediaIoBaseDownload
-    request = drive_svc.files().get_media(
-        fileId=file_id, supportsAllDrives=True
-    )
-    with open(dest_path, "wb") as fh:
-        downloader = MediaIoBaseDownload(fh, request)
-        done = False
-        while not done:
-            _, done = downloader.next_chunk()
-
-
-def _get_single_file_meta(drive_svc, file_id: str) -> dict | None:
-    """Return name + mimeType for a single file ID, or None on error."""
-    try:
-        return drive_svc.files().get(
-            fileId=file_id,
-            fields="id,name,mimeType",
-            supportsAllDrives=True,
-        ).execute()
-    except Exception:
-        return None
+def _get_file_meta(drive_svc, file_id: str) -> dict | None:
+    """Return id, name, mimeType for a single file ID."""
+    return drive_svc.files().get(
+        fileId=file_id,
+        fields="id,name,mimeType",
+        supportsAllDrives=True,
+    ).execute()
 
 
 # ---------------------------------------------------------------------------
-# gdown fallback
+# gdown fallback helpers
 # ---------------------------------------------------------------------------
 
-def _gdown_folder(folder_id: str, out_dir: str) -> tuple[list[str] | None, str | None]:
-    """
-    Try to download a public folder with gdown.
-    Returns (paths, error_detail).
-    paths=None means access denied; paths=[] means empty; error_detail set on failure.
-    """
+def _gdown_download_folder(folder_id: str, out_dir: str) -> tuple[list[str] | None, str | None]:
+    """Download public folder with gdown. Returns (paths, error_detail)."""
     try:
         import gdown
         paths = gdown.download_folder(
@@ -136,14 +114,11 @@ def _gdown_folder(folder_id: str, out_dir: str) -> tuple[list[str] | None, str |
         )
         return (paths or []), None
     except Exception as exc:
-        msg = str(exc).lower()
-        if any(kw in msg for kw in ("private", "permission", "access denied", "may still be", "cannot retrieve")):
-            return None, str(exc)
         return None, str(exc)
 
 
-def _gdown_file(file_id: str, out_dir: str) -> tuple[list[str] | None, str | None]:
-    """Try to download a single public file with gdown."""
+def _gdown_download_file(file_id: str, out_dir: str) -> tuple[list[str] | None, str | None]:
+    """Download a single public file with gdown."""
     try:
         import gdown
         path = gdown.download(
@@ -158,6 +133,33 @@ def _gdown_file(file_id: str, out_dir: str) -> tuple[list[str] | None, str | Non
         return None, str(exc)
 
 
+def _upload_to_shared_drive(drive_svc, data: bytes, filename: str, mime: str, folder_id: str) -> str:
+    """
+    Upload bytes to a Shared Drive folder.
+    Uses supportsAllDrives=True so the file goes into the Shared Drive,
+    NOT into the service account's personal (zero-quota) storage.
+    """
+    from googleapiclient.http import MediaIoBaseUpload
+    file_meta    = {"name": filename, "parents": [folder_id]}
+    media_upload = MediaIoBaseUpload(io.BytesIO(data), mimetype=mime)
+    uploaded = drive_svc.files().create(
+        body=file_meta,
+        media_body=media_upload,
+        fields="id",
+        supportsAllDrives=True,
+    ).execute()
+    file_id = uploaded["id"]
+
+    # Make publicly readable so the browser can load the thumbnail
+    drive_svc.permissions().create(
+        fileId=file_id,
+        body={"type": "anyone", "role": "reader"},
+        supportsAllDrives=True,
+    ).execute()
+
+    return file_id
+
+
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
@@ -166,13 +168,11 @@ def scrape_drive(
     url: str, brand: str, dest_folder_id: str
 ) -> tuple[list[dict], str, str | None, str | None]:
     """
-    Download media from a public Drive URL, upload copies to dest_folder_id,
-    and return product records.
+    Scrape media from a Drive URL and return product records.
 
     Returns:
         (products, status, drive_folder_url, error_detail)
         status: 'ok' | 'invalid_url' | 'not_public' | 'empty' | 'error'
-        error_detail: human-readable message for non-ok statuses
     """
     from drive_client import _drive, create_brand_folder
 
@@ -180,132 +180,128 @@ def scrape_drive(
     if not drive_id:
         return [], "invalid_url", None, None
 
-    tmp_dir = tempfile.mkdtemp(prefix="tgc_gdrive_")
     try:
         drive_svc = _drive()
 
-        # ── Step 1: collect local file paths ────────────────────────────────
-        media_files: list[str] = []  # list of (local_path, original_name) tuples
+        # ── Step 1: collect (file_id, name, asset_type) tuples ─────────────
+        # Prefer the API path — no download/re-upload needed, use source IDs directly.
+        # Fall back to gdown only if the API can't list the folder.
+
+        api_items: list[dict] = []   # [{id, name, mimeType}]
+        gdown_paths: list[str] = []  # local paths (gdown fallback only)
         error_detail: str | None = None
-        used_api = False
+        used_gdown = False
 
         if id_type == "folder":
-            # Try Drive API first
             try:
-                api_files = _list_files_in_folder(drive_svc, drive_id)
-                # filter to media
-                for f in api_files:
-                    ext = Path(f["name"]).suffix.lower()
-                    if ext in MEDIA_EXTS:
-                        dest = os.path.join(tmp_dir, f["name"])
-                        _download_file_api(drive_svc, f["id"], dest)
-                        media_files.append(dest)
-                used_api = True
-                print(f"[DriveScaper] API listed {len(api_files)} files, {len(media_files)} media")
+                all_files = _list_files_in_folder(drive_svc, drive_id)
+                api_items = [
+                    f for f in all_files
+                    if Path(f["name"]).suffix.lower() in MEDIA_EXTS
+                ]
+                print(f"[DriveScaper] API listed {len(all_files)} files, {len(api_items)} media")
             except Exception as api_exc:
                 api_err = str(api_exc)
-                print(f"[DriveScaper] API list failed ({api_err}), falling back to gdown")
-                # Fall back to gdown
-                paths, gdown_err = _gdown_folder(drive_id, tmp_dir)
+                print(f"[DriveScaper] API list failed: {api_err} — trying gdown")
+                tmp_dir = tempfile.mkdtemp(prefix="tgc_gdrive_")
+                paths, gdown_err = _gdown_download_folder(drive_id, tmp_dir)
                 if paths is None:
-                    # Check if it's a permission issue
                     err_lower = (gdown_err or "").lower()
                     if any(k in err_lower for k in ("private", "permission", "access denied", "cannot retrieve")):
                         return [], "not_public", None, (
-                            f"This folder is not accessible. Make sure it is set to "
-                            f"'Anyone with the link can view', or share it with the service account. "
+                            "This folder is not accessible. Set sharing to "
+                            "'Anyone with the link can view' and try again. "
                             f"Detail: {gdown_err}"
                         )
                     return [], "error", None, (
-                        f"Could not access the Drive folder via API or gdown.\n"
-                        f"API error: {api_err}\n"
-                        f"gdown error: {gdown_err}"
+                        f"Drive API error: {api_err}\ngdown error: {gdown_err}"
                     )
-                media_files = [
+                gdown_paths = [
                     p for p in paths
                     if p and os.path.isfile(p) and Path(p).suffix.lower() in MEDIA_EXTS
                 ]
+                used_gdown = True
 
-        else:
-            # Single file — try API first
+        else:  # single file
             try:
-                meta = _get_single_file_meta(drive_svc, drive_id)
-                if meta:
-                    ext = Path(meta["name"]).suffix.lower()
-                    if ext in MEDIA_EXTS:
-                        dest = os.path.join(tmp_dir, meta["name"])
-                        _download_file_api(drive_svc, drive_id, dest)
-                        media_files = [dest]
-                    used_api = True
+                meta = _get_file_meta(drive_svc, drive_id)
+                if Path(meta["name"]).suffix.lower() in MEDIA_EXTS:
+                    api_items = [meta]
             except Exception as api_exc:
-                print(f"[DriveScaper] API single-file failed ({api_exc}), falling back to gdown")
-                paths, gdown_err = _gdown_file(drive_id, tmp_dir)
+                api_err = str(api_exc)
+                print(f"[DriveScaper] API single-file failed: {api_err} — trying gdown")
+                tmp_dir = tempfile.mkdtemp(prefix="tgc_gdrive_")
+                paths, gdown_err = _gdown_download_file(drive_id, tmp_dir)
                 if paths is None:
                     return [], "error", None, (
-                        f"Could not download this file.\n"
-                        f"API error: {api_exc}\n"
-                        f"gdown error: {gdown_err}"
+                        f"Drive API error: {api_err}\ngdown error: {gdown_err}"
                     )
-                media_files = [
+                gdown_paths = [
                     p for p in paths
                     if p and os.path.isfile(p) and Path(p).suffix.lower() in MEDIA_EXTS
                 ]
+                used_gdown = True
 
-        if not media_files:
+        if not api_items and not gdown_paths:
             return [], "empty", None, "No image or video files were found at that Drive URL."
 
-        # ── Step 2: create destination folder ────────────────────────────────
+        # ── Step 2: create destination folder (for the manifest / organisation) ──
         import re as _re
         from datetime import datetime
         brand_safe = _re.sub(r"[^\w\-]", "_", brand).strip("_")
         timestamp  = datetime.now().strftime("%Y%m%d_%H%M%S")
         dest_folder_id_new, dest_folder_url, _ = create_brand_folder(brand_safe, timestamp)
 
-        # ── Step 3: upload to destination in batches ─────────────────────────
+        # ── Step 3: build product records ───────────────────────────────────
         products = []
-        for i, local_path in enumerate(media_files):
-            ext       = Path(local_path).suffix.lower()
-            asset_type = "video" if ext in VIDEO_EXTS else "image"
-            mime      = mimetypes.guess_type(local_path)[0] or (
-                "video/mp4" if asset_type == "video" else "image/jpeg"
-            )
-            filename = Path(local_path).name
 
-            with open(local_path, "rb") as fh:
-                data = fh.read()
+        if not used_gdown:
+            # ── API path: use source file IDs directly, no re-upload ────────
+            for f in api_items:
+                ext        = Path(f["name"]).suffix.lower()
+                asset_type = "video" if ext in VIDEO_EXTS else "image"
+                # Thumbnail URL works for any file the service account can read
+                thumbnail_url = f"https://drive.google.com/thumbnail?id={f['id']}&sz=w800"
+                products.append({
+                    "product_name": "",
+                    "price": "",
+                    "description": "",
+                    "assets": [{"url": thumbnail_url, "type": asset_type}],
+                })
 
-            from googleapiclient.http import MediaIoBaseUpload
-            file_meta   = {"name": filename, "parents": [dest_folder_id_new]}
-            media_upload = MediaIoBaseUpload(io.BytesIO(data), mimetype=mime)
-            uploaded    = drive_svc.files().create(
-                body=file_meta, media_body=media_upload, fields="id"
-            ).execute()
-            file_id = uploaded["id"]
+        else:
+            # ── gdown fallback: upload to Shared Drive with supportsAllDrives ──
+            try:
+                for i, local_path in enumerate(gdown_paths):
+                    ext        = Path(local_path).suffix.lower()
+                    asset_type = "video" if ext in VIDEO_EXTS else "image"
+                    mime       = mimetypes.guess_type(local_path)[0] or (
+                        "video/mp4" if asset_type == "video" else "image/jpeg"
+                    )
+                    with open(local_path, "rb") as fh:
+                        data = fh.read()
 
-            # Make publicly readable for thumbnail preview
-            drive_svc.permissions().create(
-                fileId=file_id,
-                body={"type": "anyone", "role": "reader"},
-            ).execute()
+                    file_id = _upload_to_shared_drive(
+                        drive_svc, data, Path(local_path).name, mime, dest_folder_id_new
+                    )
+                    thumbnail_url = f"https://drive.google.com/thumbnail?id={file_id}&sz=w800"
+                    products.append({
+                        "product_name": "",
+                        "price": "",
+                        "description": "",
+                        "assets": [{"url": thumbnail_url, "type": asset_type}],
+                    })
 
-            thumbnail_url = f"https://drive.google.com/thumbnail?id={file_id}&sz=w800"
-            products.append({
-                "product_name": "",
-                "price": "",
-                "description": "",
-                "assets": [{"url": thumbnail_url, "type": asset_type}],
-            })
-
-            if (i + 1) % BATCH_SIZE == 0 and (i + 1) < len(media_files):
-                time.sleep(BATCH_PAUSE)
+                    if (i + 1) % BATCH_SIZE == 0 and (i + 1) < len(gdown_paths):
+                        time.sleep(BATCH_PAUSE)
+            finally:
+                if 'tmp_dir' in dir():
+                    shutil.rmtree(tmp_dir, ignore_errors=True)
 
         return products, "ok", dest_folder_url, None
 
     except Exception as exc:
         import traceback
-        detail = f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
-        print(f"[DriveScaper] Unexpected error:\n{detail}")
+        tb = traceback.format_exc()
+        print(f"[DriveScaper] Unexpected error:\n{tb}")
         return [], "error", None, str(exc)
-
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
