@@ -63,6 +63,7 @@ class ProductIn(BaseModel):
     price: str
     description: str
     assets: list[AssetIn]
+    brand: Optional[str] = ""
     level_1: Optional[str] = ""
     level_2: Optional[str] = ""
     level_3: Optional[str] = ""
@@ -80,9 +81,11 @@ class InstagramRequest(BaseModel):
     brand: str
 
 
-class SheetRequest(BaseModel):
-    sheet_url: str
-    brand: str
+# Sheet URL is fixed — stored in env var, not entered by users
+VENDOR_SHEET_URL = os.environ.get(
+    "VENDOR_SHEET_URL",
+    "https://docs.google.com/spreadsheets/d/1_TqzNolDHdHGECOhLVHpu2cpldcXJwjr7FUUQjuuZwE/edit",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -350,17 +353,18 @@ async def scrape_instagram_endpoint(req: InstagramRequest):
 # POST /api/read-sheet  (Vendor Uploads tab)
 # ---------------------------------------------------------------------------
 
-@app.post("/api/read-sheet")
-async def read_sheet_endpoint(req: SheetRequest):
+@app.get("/api/read-sheet")
+async def read_sheet_endpoint():
     """
-    Read a Google Sheet and return products in the standard format.
-    Expected columns (case-insensitive, spaces ok):
-      product_name, description, price,
-      level_1 … level_5,
-      asset_1_url … asset_N_url, asset_1_type … asset_N_type  (type optional)
+    Read the configured vendor Google Sheet and return products.
+    Sheet URL comes from the VENDOR_SHEET_URL env var — users don't enter it.
+    Brand is read from each row's 'brand' column.
+    Expected columns (case-insensitive):
+      product_name, brand, description, price, level_1…level_5,
+      asset_1_url…asset_N_url, asset_1_type…asset_N_type (type optional)
     """
     rows, error = await asyncio.get_event_loop().run_in_executor(
-        _executor, read_sheet_data, req.sheet_url
+        _executor, read_sheet_data, VENDOR_SHEET_URL
     )
 
     if error:
@@ -370,7 +374,6 @@ async def read_sheet_endpoint(req: SheetRequest):
 
     products = []
     for row in rows:
-        # Collect assets — support asset_1_url / asset1_url / image_1 etc.
         assets = []
         for i in range(1, 20):
             url = (
@@ -378,25 +381,21 @@ async def read_sheet_endpoint(req: SheetRequest):
                 row.get(f"asset{i}_url") or
                 row.get(f"image_{i}_url") or
                 row.get(f"image{i}_url") or
-                row.get(f"asset_{i}") or
                 ""
             ).strip()
             if not url:
                 break
-            atype = (
-                row.get(f"asset_{i}_type") or
-                row.get(f"asset{i}_type") or
-                "image"
-            ).strip().lower()
+            atype = (row.get(f"asset_{i}_type") or row.get(f"asset{i}_type") or "image").strip().lower()
             if atype not in ("image", "video"):
                 atype = "image"
             assets.append({"url": url, "type": atype})
 
         if not assets:
-            continue  # skip rows with no asset URLs
+            continue
 
         products.append({
             "product_name": row.get("product_name") or row.get("name") or "",
+            "brand":        row.get("brand") or "",
             "description":  row.get("description") or row.get("desc") or "",
             "price":        row.get("price") or "",
             "level_1":      row.get("level_1") or row.get("level1") or "",
@@ -410,8 +409,7 @@ async def read_sheet_endpoint(req: SheetRequest):
     if not products:
         raise HTTPException(
             status_code=404,
-            detail="No rows with asset URLs found. Check that columns are named "
-                   "asset_1_url, asset_2_url, etc."
+            detail="No rows with asset URLs found. Check column names: asset_1_url, asset_2_url, etc."
         )
 
     return {"products": products, "count": len(products), "platform": "sheet"}
@@ -435,11 +433,14 @@ async def push_to_storage(req: PushRequest):
 
     # --- Part 3: ImageKit uploads ---
     for product in req.products:
+        # Use per-product brand (vendor sheet) if set, otherwise fall back to request brand
+        effective_brand = product.brand or req.brand
+
         metadata = {
             "product_name": product.product_name,
             "description": product.description,
             "price": product.price,
-            "brand": req.brand,
+            "brand": effective_brand,
             "level_1": product.level_1 or "",
             "level_2": product.level_2 or "",
             "level_3": product.level_3 or "",
@@ -458,7 +459,8 @@ async def push_to_storage(req: PushRequest):
                 ext = ".jpg" if asset.type != "video" else ".mp4"
             filename = sanitize(f"{brand_safe}_{product.product_name}_{i+1}") + ext
 
-            result = upload_to_imagekit(url, filename, brand_safe, metadata)
+            folder_safe = sanitize(effective_brand) or brand_safe
+            result = upload_to_imagekit(url, filename, folder_safe, metadata)
 
             if result:
                 uploaded.append(
@@ -469,7 +471,7 @@ async def push_to_storage(req: PushRequest):
                         "product_name": product.product_name,
                         "description":  product.description,
                         "price":        product.price,
-                        "brand":        req.brand,
+                        "brand":        effective_brand,
                         "level_1":      product.level_1 or "",
                         "level_2":      product.level_2 or "",
                         "level_3":      product.level_3 or "",

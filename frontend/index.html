@@ -607,16 +607,9 @@
 <!-- ══════════ TAB: Vendor Uploads ══════════ -->
 <div class="tab-panel" id="tab-vendor">
 
-  <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <input id="vendorSheetInput" type="url"
-      placeholder="Google Sheet URL"
-      style="flex:2;min-width:300px;padding:9px 13px;border:1px solid var(--border);border-radius:7px;font-size:.88rem;outline:none;background:var(--bg)"
-      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
-    <input id="vendorBrandInput" type="text"
-      placeholder="Brand name"
-      style="flex:1;min-width:150px;padding:9px 13px;border:1px solid var(--border);border-radius:7px;font-size:.88rem;outline:none;background:var(--bg)"
-      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
+  <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;gap:10px">
     <button class="btn-primary" id="getVendorBtn" onclick="getVendorData()">Get Data</button>
+    <span style="font-size:.82rem;color:var(--muted)">Loads products from the configured vendor upload sheet.</span>
   </div>
 
   <div id="vendor-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
@@ -900,10 +893,6 @@
 
   // ── Get Vendor Data (vendor tab) ──
   async function getVendorData() {
-    const sheetUrl = document.getElementById('vendorSheetInput').value.trim();
-    const brand    = document.getElementById('vendorBrandInput').value.trim();
-    if (!sheetUrl || !brand) { showStatus('Please enter both a Google Sheet URL and a brand name.', 'error'); return; }
-
     const btn = document.getElementById('getVendorBtn');
     setLoading(btn, true, 'Loading…');
     showStatus('Reading sheet data…', 'info', true);
@@ -913,25 +902,21 @@
     updateActionBar();
 
     try {
-      const res  = await fetch(`${API_BASE}/api/read-sheet`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sheet_url: sheetUrl, brand }),
-      });
+      const res = await fetch(`${API_BASE}/api/read-sheet`);
 
       let data;
       try { data = await res.json(); }
       catch { data = { detail: `Server error (HTTP ${res.status}).` }; }
 
       if (!res.ok) {
-        showStatus(data.detail || "Couldn't read that sheet.", 'error');
+        showStatus(data.detail || "Couldn't read the sheet.", 'error');
         document.getElementById('vendor-emptyState').style.display = 'block';
         setLoading(btn, false, 'Get Data'); return;
       }
 
-      // vendor tab has no drive link bar — pass null-safe ids
       S().productState = (data.products || []).map(p => ({
         ...p,
-        assets: p.assets.map(a => ({ ...a })),
+        assets:  p.assets.map(a => ({ ...a })),
         level_1: p.level_1 || '', level_2: p.level_2 || '',
         level_3: p.level_3 || '', level_4: p.level_4 || '', level_5: p.level_5 || '',
       }));
