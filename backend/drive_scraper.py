@@ -260,7 +260,6 @@ def scrape_drive(
             for f in api_items:
                 ext        = Path(f["name"]).suffix.lower()
                 asset_type = "video" if ext in VIDEO_EXTS else "image"
-                # Thumbnail URL works for any file the service account can read
                 thumbnail_url = f"https://drive.google.com/thumbnail?id={f['id']}&sz=w800"
                 products.append({
                     "product_name": "",
@@ -268,6 +267,27 @@ def scrape_drive(
                     "description": "",
                     "assets": [{"url": thumbnail_url, "type": asset_type}],
                 })
+
+            # Save a CSV manifest to the brand folder so it isn't empty
+            try:
+                from drive_client import upload_csv_to_drive
+                csv_rows = [
+                    {
+                        "filename":       f["name"],
+                        "asset_type":     "video" if Path(f["name"]).suffix.lower() in VIDEO_EXTS else "image",
+                        "thumbnail_url":  f"https://drive.google.com/thumbnail?id={f['id']}&sz=w800",
+                        "source_file_id": f["id"],
+                    }
+                    for f in api_items
+                ]
+                upload_csv_to_drive(
+                    csv_rows,
+                    ["filename", "asset_type", "thumbnail_url", "source_file_id"],
+                    f"{brand_safe}_{timestamp}_drive_manifest.csv",
+                    dest_folder_id_new,
+                )
+            except Exception as csv_exc:
+                print(f"[DriveScaper] CSV manifest upload failed: {csv_exc}")
 
         else:
             # ── gdown fallback: upload to Shared Drive with supportsAllDrives ──

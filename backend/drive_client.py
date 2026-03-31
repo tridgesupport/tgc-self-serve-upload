@@ -92,40 +92,75 @@ def upload_csv_to_drive(
 
 
 # ---------------------------------------------------------------------------
-# Google Sheets export
+# Google Sheets export — persistent ImageKit library
 # ---------------------------------------------------------------------------
 
-def create_sheet_in_drive(
-    data_rows: list[dict], sheet_name: str, folder_id: str
-) -> str:
+IMAGEKIT_SHEET_NAME = "ImageKit_Library"
+IMAGEKIT_HEADERS = [
+    "product_name", "description", "price", "brand",
+    "level_1", "level_2", "level_3", "level_4", "level_5",
+    "imagekit_url", "file_name", "file_id",
+]
+
+
+def _find_sheet(drive_svc, name: str, folder_id: str) -> str | None:
+    """Return the spreadsheet ID if a sheet with this name exists in folder_id."""
+    result = drive_svc.files().list(
+        q=(
+            f"'{folder_id}' in parents"
+            f" and name='{name}'"
+            f" and mimeType='application/vnd.google-apps.spreadsheet'"
+            f" and trashed=false"
+        ),
+        fields="files(id)",
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True,
+        pageSize=5,
+    ).execute()
+    files = result.get("files", [])
+    return files[0]["id"] if files else None
+
+
+def append_to_imagekit_sheet(rows: list[dict], folder_id: str) -> str:
     """
-    Create a Google Sheet inside folder_id, populate it with data_rows,
-    and return its webViewLink.
+    Append rows to the persistent 'ImageKit_Library' sheet in folder_id.
+    Creates the sheet with a header row if it doesn't exist yet.
+    Returns the sheet's webViewLink.
     """
-    drive_svc = _drive()
+    drive_svc  = _drive()
     sheets_svc = _sheets()
 
-    # Create the spreadsheet file in Drive
-    file_meta = {
-        "name": sheet_name,
-        "mimeType": "application/vnd.google-apps.spreadsheet",
-        "parents": [folder_id],
-    }
-    sheet_file = drive_svc.files().create(
-        body=file_meta, fields="id,webViewLink", supportsAllDrives=True
-    ).execute()
-    spreadsheet_id = sheet_file["id"]
+    sheet_id = _find_sheet(drive_svc, IMAGEKIT_SHEET_NAME, folder_id)
 
-    if data_rows:
-        headers = list(data_rows[0].keys())
-        values = [headers] + [
-            [str(row.get(h, "")) for h in headers] for row in data_rows
-        ]
+    if not sheet_id:
+        # First run — create the sheet and write headers
+        file_meta = {
+            "name": IMAGEKIT_SHEET_NAME,
+            "mimeType": "application/vnd.google-apps.spreadsheet",
+            "parents": [folder_id],
+        }
+        sheet_file = drive_svc.files().create(
+            body=file_meta, fields="id,webViewLink", supportsAllDrives=True
+        ).execute()
+        sheet_id = sheet_file["id"]
         sheets_svc.spreadsheets().values().update(
-            spreadsheetId=spreadsheet_id,
+            spreadsheetId=sheet_id,
             range="Sheet1!A1",
             valueInputOption="RAW",
+            body={"values": [IMAGEKIT_HEADERS]},
+        ).execute()
+
+    if rows:
+        values = [[str(row.get(h, "")) for h in IMAGEKIT_HEADERS] for row in rows]
+        sheets_svc.spreadsheets().values().append(
+            spreadsheetId=sheet_id,
+            range="Sheet1!A1",
+            valueInputOption="RAW",
+            insertDataOption="INSERT_ROWS",
             body={"values": values},
         ).execute()
 
-    return sheet_file["webViewLink"]
+    link = drive_svc.files().get(
+        fileId=sheet_id, fields="webViewLink", supportsAllDrives=True
+    ).execute()
+    return link["webViewLink"]

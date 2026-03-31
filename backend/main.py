@@ -24,14 +24,14 @@ load_dotenv()
 sys.path.insert(0, os.path.dirname(__file__))
 
 from drive_client import (
+    append_to_imagekit_sheet,
     create_brand_folder,
-    create_sheet_in_drive,
     upload_csv_to_drive,
     upload_media_bytes,
     PARENT_FOLDER_ID,
 )
 from drive_scraper import scrape_drive, extract_drive_id
-from imagekit_client import fetch_all_imagekit_files, upload_to_imagekit
+from imagekit_client import upload_to_imagekit
 from instagram_scraper import scrape_instagram
 from scraper import detect_and_scrape
 
@@ -421,47 +421,47 @@ async def push_to_storage(req: PushRequest):
             if result:
                 uploaded.append(
                     {
-                        "filename": filename,
+                        "filename":     filename,
                         "imagekit_url": result.get("url", ""),
-                        "file_id": result.get("fileId", ""),
+                        "file_id":      result.get("fileId", ""),
                         "product_name": product.product_name,
+                        "description":  product.description,
+                        "price":        product.price,
+                        "brand":        req.brand,
+                        "level_1":      product.level_1 or "",
+                        "level_2":      product.level_2 or "",
+                        "level_3":      product.level_3 or "",
+                        "level_4":      product.level_4 or "",
+                        "level_5":      product.level_5 or "",
                     }
                 )
             else:
                 errors.append(f"Failed to upload: {filename}")
 
-    # --- Part 4: Export ImageKit → Google Sheet ---
+    # --- Part 4: Append newly uploaded assets to the persistent ImageKit sheet ---
     sheets_url = None
     try:
-        ik_files = fetch_all_imagekit_files()
-        rows = []
-        for f in ik_files:
-            meta = f.get("customMetadata") or {}
-            rows.append(
+        if uploaded:
+            sheet_rows = [
                 {
-                    "product_name": meta.get("product_name", ""),
-                    "description": meta.get("description", ""),
-                    "price": meta.get("price", ""),
-                    "brand": meta.get("brand", ""),
-                    "level_1": meta.get("level_1", ""),
-                    "level_2": meta.get("level_2", ""),
-                    "level_3": meta.get("level_3", ""),
-                    "level_4": meta.get("level_4", ""),
-                    "level_5": meta.get("level_5", ""),
-                    "imagekit_url": f.get("url", ""),
-                    "file_name": f.get("name", ""),
-                    "file_id": f.get("fileId", ""),
+                    "product_name": u["product_name"],
+                    "description":  u["description"],
+                    "price":        u["price"],
+                    "brand":        u["brand"],
+                    "level_1":      u["level_1"],
+                    "level_2":      u["level_2"],
+                    "level_3":      u["level_3"],
+                    "level_4":      u["level_4"],
+                    "level_5":      u["level_5"],
+                    "imagekit_url": u["imagekit_url"],
+                    "file_name":    u["filename"],
+                    "file_id":      u["file_id"],
                 }
-            )
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        sheets_url = create_sheet_in_drive(
-            rows,
-            f"ImageKit_Export_{timestamp}",
-            PARENT_FOLDER_ID,
-        )
+                for u in uploaded
+            ]
+            sheets_url = append_to_imagekit_sheet(sheet_rows, PARENT_FOLDER_ID)
     except Exception as exc:
-        print(f"[Sheets] Export error: {exc}")
+        print(f"[Sheets] Append error: {exc}")
 
     return {
         "uploaded": uploaded,
