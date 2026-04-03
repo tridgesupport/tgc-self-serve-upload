@@ -1213,13 +1213,14 @@
       : activeTab === 'instagram'
         ? document.getElementById('igBrandInput').value.trim()
         : activeTab === 'vendor'
-          ? document.getElementById('vendorBrandInput').value.trim()
+          ? ''   // vendor brand comes per-product from the sheet
           : document.getElementById('brandInput').value.trim();
     const selectedProducts = S().productState
       .map((prod, pIdx) => {
         const sel = prod.assets.filter((_, ai) => S().selectedAssets.get(`${pIdx}_${ai}`));
         if (!sel.length) return null;
         return { product_name: prod.product_name, price: prod.price, product_description: prod.product_description,
+          brand: prod.brand || '',
           assets: sel, level_1: prod.level_1||'', level_2: prod.level_2||'',
           level_3: prod.level_3||'', level_4: prod.level_4||'', level_5: prod.level_5||'' };
       }).filter(Boolean);
@@ -1236,7 +1237,7 @@
       });
       const data = await res.json();
 
-      if (!res.ok) { showStatus(data.detail || 'Push failed.', 'error'); setLoading(btn, false, 'Push to Storage'); return; }
+      if (!res.ok) { showStatus(data.detail || 'Push failed.', 'error'); setLoading(btn, false, 'Approve'); return; }
 
       showStatus(`Done! ${data.upload_count} asset${data.upload_count !== 1 ? 's' : ''} pushed to ImageKit.`, 'success');
       openResultModal(data);
@@ -1244,7 +1245,7 @@
       showStatus(`Network error: ${err.message}`, 'error');
     }
 
-    setLoading(btn, false, 'Push to Storage');
+    setLoading(btn, false, 'Approve');
   }
 
   // ── Result modal ──
