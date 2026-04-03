@@ -27,6 +27,12 @@
     }
 
     /* ── Header ── */
+    #stickyTop {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow);
+    }
     header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
@@ -34,10 +40,6 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      box-shadow: var(--shadow);
     }
     header h1 {
       font-size: 1.1rem;
@@ -538,24 +540,25 @@
 </head>
 <body>
 
-<!-- ── Header ── -->
-<header>
-  <h1>TGC Upload</h1>
-  <!-- Scraper form -->
-  <div class="header-form" id="form-scraper">
-    <input id="urlInput"   type="url"  placeholder="Brand website URL (e.g. https://example.myshopify.com)" />
-    <input id="brandInput" type="text" placeholder="Brand name" />
-    <button class="btn-primary" id="getProductsBtn" onclick="getProducts()">Get Products</button>
-  </div>
-</header>
+<!-- ── Sticky top bar (header + tabs) ── -->
+<div id="stickyTop">
+  <header>
+    <h1>TGC Upload</h1>
+    <div class="header-form" id="form-scraper">
+      <input id="urlInput"   type="url"  placeholder="Brand website URL (e.g. https://example.myshopify.com)" />
+      <input id="brandInput" type="text" placeholder="Brand name" />
+      <button class="btn-primary" id="getProductsBtn" onclick="getProducts()">Get Products</button>
+    </div>
+  </header>
 
-<!-- ── Tab bar ── -->
-<div id="tabBar">
-  <button class="tab-btn active" data-tab="scraper"   onclick="switchTab('scraper')">Product Scraper</button>
-  <button class="tab-btn"        data-tab="drive"     onclick="switchTab('drive')">Google Drive Folders</button>
-  <button class="tab-btn"        data-tab="instagram" onclick="switchTab('instagram')">Instagram Handles</button>
-  <button class="tab-btn"        data-tab="vendor"    onclick="switchTab('vendor')">Vendor Uploads</button>
-  <button class="tab-btn"        data-tab="igpost"    onclick="switchTab('igpost')">View as IG Post</button>
+  <!-- ── Tab bar ── -->
+  <div id="tabBar">
+    <button class="tab-btn active" data-tab="scraper"   onclick="switchTab('scraper')">Product Scraper</button>
+    <button class="tab-btn"        data-tab="drive"     onclick="switchTab('drive')">Google Drive Folders</button>
+    <button class="tab-btn"        data-tab="instagram" onclick="switchTab('instagram')">Instagram Handles</button>
+    <button class="tab-btn"        data-tab="vendor"    onclick="switchTab('vendor')">Vendor Uploads</button>
+    <button class="tab-btn"        data-tab="igpost"    onclick="switchTab('igpost')">View as IG Post</button>
+  </div>
 </div>
 
 <!-- ══════════ TAB: Product Scraper ══════════ -->
