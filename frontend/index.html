@@ -598,6 +598,7 @@
       style="flex:1;min-width:150px;padding:9px 13px;border:1px solid var(--border);border-radius:7px;font-size:.88rem;outline:none;background:var(--bg)"
       onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
     <button class="btn-primary" id="getIgBtn" onclick="getInstagramPosts()">Get Posts</button>
+    <button class="btn-primary" id="igPushBtn" onclick="pushToInstagram()" disabled>Push to Instagram</button>
   </div>
 
   <div id="instagram-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
@@ -1198,6 +1199,13 @@
       count === 0 ? 'No items selected'
                   : `<strong>${count}</strong> asset${count !== 1 ? 's' : ''} selected`;
     document.getElementById('pushBtn').disabled = !canPush();
+    const igPushBtn = document.getElementById('igPushBtn');
+    if (igPushBtn) {
+      const hasSelectedImages = activeTab === 'instagram' && S().productState.some((prod, pIdx) =>
+        prod.assets.some((a, ai) => S().selectedAssets.get(`${pIdx}_${ai}`) && a.type !== 'video')
+      );
+      igPushBtn.disabled = !hasSelectedImages;
+    }
     const selAllBtn = document.getElementById('selectAllBtn');
     if (selAllBtn) {
       selAllBtn.textContent = (count > 0 && count === total) ? 'Deselect All' : 'Select All';
@@ -1246,6 +1254,62 @@
     }
 
     setLoading(btn, false, 'Approve');
+  }
+
+  // ── Push to Instagram ──
+  async function pushToInstagram() {
+    const selectedProducts = S().productState
+      .map((prod, pIdx) => {
+        const sel = prod.assets.filter((a, ai) =>
+          S().selectedAssets.get(`${pIdx}_${ai}`) && a.type !== 'video'
+        );
+        if (!sel.length) return null;
+        return {
+          product_name: prod.product_name,
+          price: prod.price,
+          product_description: prod.product_description,
+          brand: prod.brand || document.getElementById('igBrandInput').value.trim(),
+          assets: sel,
+          level_1: prod.level_1 || '', level_2: prod.level_2 || '',
+          level_3: prod.level_3 || '', level_4: prod.level_4 || '',
+          level_5: prod.level_5 || '',
+        };
+      }).filter(Boolean);
+
+    if (!selectedProducts.length) {
+      showStatus('Select at least one image asset first.', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('igPushBtn');
+    setLoading(btn, true, 'Posting…');
+    showStatus('Posting to Instagram… this may take a moment.', 'info', true);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/push-to-instagram`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          products: selectedProducts,
+          brand: document.getElementById('igBrandInput').value.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showStatus(data.detail || 'Push to Instagram failed.', 'error');
+        setLoading(btn, false, 'Push to Instagram');
+        return;
+      }
+      const errs = (data.errors || []).length;
+      let msg = `Done! ${data.post_count} post${data.post_count !== 1 ? 's' : ''} published to Instagram.`;
+      if (errs) msg += ` (${errs} error${errs !== 1 ? 's' : ''} — see console)`;
+      showStatus(msg, data.post_count > 0 ? 'success' : 'error');
+      if (data.errors && data.errors.length) console.warn('[Instagram push errors]', data.errors);
+    } catch (err) {
+      showStatus(`Network error: ${err.message}`, 'error');
+    }
+
+    setLoading(btn, false, 'Push to Instagram');
   }
 
   // ── Result modal ──
