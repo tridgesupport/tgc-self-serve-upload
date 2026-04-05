@@ -114,7 +114,7 @@ def scrape_instagram(handle: str, max_posts: int = MAX_POSTS) -> tuple[list[dict
 
     except ImportError:
         print("[Instagram/Apify] apify-client not installed")
-        return [], "error"
+        return [], "error:apify-client not installed"
     except Exception as exc:
         msg = str(exc).lower()
         print(f"[Instagram/Apify] Error for @{handle}: {exc}")
@@ -126,7 +126,7 @@ def scrape_instagram(handle: str, max_posts: int = MAX_POSTS) -> tuple[list[dict
             return [], "rate_limited"
         if "unauthorized" in msg or "invalid token" in msg or "api key" in msg:
             return [], "no_api_key"
-        return [], "error"
+        return [], f"error:{exc}"
 
     if not items:
         return [], "empty"
@@ -147,7 +147,7 @@ def scrape_instagram(handle: str, max_posts: int = MAX_POSTS) -> tuple[list[dict
         products.append({
             "product_name": "",
             "price": "",
-            "description": caption,
+            "product_description": caption,
             "assets": assets,
             "post_url": post_url,
         })

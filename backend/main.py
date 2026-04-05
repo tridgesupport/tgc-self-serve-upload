@@ -299,17 +299,22 @@ async def scrape_instagram_endpoint(req: InstagramRequest):
         print(f"[Instagram] Unexpected error: {exc}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again.")
 
-    error_messages = {
-        "not_found":    f"No Instagram account found for @{handle}. Check the handle and try again.",
-        "private":      f"@{handle} is a private account. Only public profiles can be scraped.",
-        "rate_limited": "Instagram has temporarily rate-limited this request. Please wait a few minutes and try again.",
-        "empty":        f"No posts found on @{handle}.",
-        "no_api_key":   "APIFY_API_KEY is not set. Please add it to your environment variables.",
-        "error":        "Something went wrong while accessing Instagram. Please try again.",
-    }
-
     if status != "ok":
-        raise HTTPException(status_code=400, detail=error_messages.get(status, "Unknown error."))
+        if status == "not_found":
+            detail = f"No Instagram account found for @{handle}. Check the handle and try again."
+        elif status == "private":
+            detail = f"@{handle} is a private account. Only public profiles can be scraped."
+        elif status == "rate_limited":
+            detail = "Instagram has temporarily rate-limited this request. Please wait a few minutes and try again."
+        elif status == "empty":
+            detail = f"No posts found on @{handle}."
+        elif status == "no_api_key":
+            detail = "APIFY_API_KEY is not set. Please add it to your environment variables."
+        elif status.startswith("error:"):
+            detail = f"Instagram scraping failed: {status[6:]}"
+        else:
+            detail = "Something went wrong while accessing Instagram. Please try again."
+        raise HTTPException(status_code=400, detail=detail)
 
     # Create Drive folder + CSV (non-fatal if it fails)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
