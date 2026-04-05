@@ -81,6 +81,11 @@ class InstagramRequest(BaseModel):
     brand: str
 
 
+class InstagramPushRequest(BaseModel):
+    products: list[ProductIn]
+    brand: str
+
+
 # Sheet URL is fixed — stored in env var, not entered by users
 VENDOR_SHEET_URL = os.environ.get(
     "VENDOR_SHEET_URL",
@@ -520,6 +525,137 @@ async def push_to_storage(req: PushRequest):
         "upload_count": len(uploaded),
         "errors": errors,
         "sheets_url": sheets_url,
+    }
+
+
+# ---------------------------------------------------------------------------
+# POST /api/push-to-instagram
+# ---------------------------------------------------------------------------
+
+IG_ACCOUNT_ID   = os.environ.get("INSTAGRAM_ACCOUNT_ID", "")
+IG_ACCESS_TOKEN = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "")
+IG_API_BASE     = "https://graph.facebook.com/v19.0"
+
+
+def _ig_post(path: str, params: dict) -> dict:
+    """Make a POST to the Instagram Graph API and return the JSON response."""
+    import requests as _requests
+    params["access_token"] = IG_ACCESS_TOKEN
+    resp = _requests.post(f"{IG_API_BASE}{path}", params=params, timeout=30)
+    return resp.json()
+
+
+@app.post("/api/push-to-instagram")
+async def push_to_instagram(req: InstagramPushRequest):
+    """
+    Post each product as a separate Instagram post to the pre-configured
+    Business account.  Multiple image assets → carousel; single image → photo post.
+    Videos are skipped (Graph API carousel items must be images).
+    """
+    if not IG_ACCOUNT_ID or not IG_ACCESS_TOKEN:
+        raise HTTPException(
+            status_code=400,
+            detail="Instagram credentials not configured. Set INSTAGRAM_ACCOUNT_ID and INSTAGRAM_ACCESS_TOKEN in environment.",
+        )
+
+    posted: list[dict] = []
+    errors: list[str] = []
+
+    loop = asyncio.get_event_loop()
+
+    for product in req.products:
+        # Build caption
+        parts = []
+        if product.product_name:
+            parts.append(product.product_name)
+        if product.product_description:
+            parts.append(product.product_description)
+        if product.price:
+            parts.append(f"💰 {product.price}")
+        caption = "\n\n".join(parts)
+
+        # Only image assets; cap at 10 (Instagram carousel limit)
+        image_assets = [a for a in product.assets if a.type != "video"][:10]
+
+        if not image_assets:
+            errors.append(f"{product.product_name or 'Unknown'}: no image assets to post")
+            continue
+
+        try:
+            if len(image_assets) == 1:
+                # Single image post
+                data = await loop.run_in_executor(
+                    _executor,
+                    lambda: _ig_post(
+                        f"/{IG_ACCOUNT_ID}/media",
+                        {"image_url": image_assets[0].url, "caption": caption},
+                    ),
+                )
+                if "error" in data:
+                    raise ValueError(data["error"].get("message", str(data["error"])))
+                container_id = data["id"]
+
+                pub = await loop.run_in_executor(
+                    _executor,
+                    lambda: _ig_post(
+                        f"/{IG_ACCOUNT_ID}/media_publish",
+                        {"creation_id": container_id},
+                    ),
+                )
+                if "error" in pub:
+                    raise ValueError(pub["error"].get("message", str(pub["error"])))
+                posted.append({"product_name": product.product_name, "post_id": pub.get("id", "")})
+
+            else:
+                # Carousel post — create item containers first
+                item_ids: list[str] = []
+                for asset in image_assets:
+                    item_data = await loop.run_in_executor(
+                        _executor,
+                        lambda a=asset: _ig_post(
+                            f"/{IG_ACCOUNT_ID}/media",
+                            {"image_url": a.url, "is_carousel_item": "true"},
+                        ),
+                    )
+                    if "error" in item_data:
+                        raise ValueError(item_data["error"].get("message", str(item_data["error"])))
+                    item_ids.append(item_data["id"])
+
+                # Create carousel container
+                carousel_data = await loop.run_in_executor(
+                    _executor,
+                    lambda: _ig_post(
+                        f"/{IG_ACCOUNT_ID}/media",
+                        {
+                            "media_type": "CAROUSEL",
+                            "children": ",".join(item_ids),
+                            "caption": caption,
+                        },
+                    ),
+                )
+                if "error" in carousel_data:
+                    raise ValueError(carousel_data["error"].get("message", str(carousel_data["error"])))
+                carousel_id = carousel_data["id"]
+
+                # Publish
+                pub = await loop.run_in_executor(
+                    _executor,
+                    lambda: _ig_post(
+                        f"/{IG_ACCOUNT_ID}/media_publish",
+                        {"creation_id": carousel_id},
+                    ),
+                )
+                if "error" in pub:
+                    raise ValueError(pub["error"].get("message", str(pub["error"])))
+                posted.append({"product_name": product.product_name, "post_id": pub.get("id", "")})
+
+        except Exception as exc:
+            errors.append(f"{product.product_name or 'Unknown'}: {exc}")
+
+    return {
+        "posted": posted,
+        "post_count": len(posted),
+        "errors": errors,
     }
 
 
