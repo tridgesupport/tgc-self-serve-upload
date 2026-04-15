@@ -33,6 +33,9 @@ def upload_to_imagekit(
             return None
 
         # Strip empty strings — ImageKit rejects empty values for defined fields
+        # Truncate product_description to ImageKit's 1024-char metadata limit
+        if "product_description" in metadata and metadata["product_description"]:
+            metadata["product_description"] = metadata["product_description"][:1024]
         metadata_clean = {k: v for k, v in metadata.items() if v != "" and v is not None}
 
         resp = requests.post(

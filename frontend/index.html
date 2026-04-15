@@ -1123,8 +1123,9 @@
                 oninput="S().productState[${pIdx}].product_name = this.value" />
             </div>
             <div class="field-group">
-              <label>Description</label>
-              <textarea oninput="S().productState[${pIdx}].product_description = this.value">${escHtml(prod.product_description)}</textarea>
+              <label>Description <span style="font-weight:400;color:var(--muted);font-size:.75rem">(max 1024 chars)</span></label>
+              <textarea maxlength="1024" oninput="S().productState[${pIdx}].product_description=this.value;this.nextElementSibling.textContent=this.value.length+'/1024';this.nextElementSibling.style.color=this.value.length>950?'#c0392b':'var(--muted)'">${escHtml(prod.product_description)}</textarea>
+              <span style="font-size:.72rem;color:var(--muted);text-align:right;display:block">${Math.min((prod.product_description||'').length,1024)}/1024</span>
             </div>
             <div class="field-group">
               <label>Price</label>
