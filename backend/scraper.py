@@ -97,7 +97,7 @@ def scrape_shopify(root_url: str) -> list[dict]:
                 {
                     "product_name": p.get("title", ""),
                     "price": price,
-                    "description": clean_html(p.get("body_html", "")),
+                    "product_description": clean_html(p.get("body_html", "")),
                     "assets": deduped,
                 }
             )
@@ -170,7 +170,7 @@ def scrape_wordpress(root_url: str) -> list[dict]:
                     {
                         "product_name": name,
                         "price": str(price),
-                        "description": clean_html(desc_raw),
+                        "product_description": clean_html(desc_raw),
                         "assets": assets,
                     }
                 )

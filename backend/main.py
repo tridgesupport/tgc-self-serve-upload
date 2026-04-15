@@ -123,6 +123,14 @@ async def health():
 
 async def _run_scrape_job(job_id: str, req: ScrapeRequest):
     """Background task: scrape + Drive upload. Writes result into _jobs."""
+    try:
+        await _do_scrape_job(job_id, req)
+    except BaseException as exc:
+        print(f"[Scraper] Unhandled crash for job {job_id}: {exc}")
+        _jobs[job_id] = {"status": "error", "detail": "An unexpected error occurred while scraping."}
+
+
+async def _do_scrape_job(job_id: str, req: ScrapeRequest):
     loop = asyncio.get_event_loop()
     deadline = loop.time() + SCRAPE_TIMEOUT_SECS
     products, platform = [], "unknown"
