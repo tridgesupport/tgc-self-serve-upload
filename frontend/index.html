@@ -815,19 +815,46 @@
     updateActionBar();
 
     try {
-      const res  = await fetch(`${API_BASE}/api/scrape`, {
+      // Step 1: start the job
+      const startRes = await fetch(`${API_BASE}/api/scrape`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, brand }),
       });
-      const data = await res.json();
-
-      if (!res.ok) {
-        showStatus(data.detail || "This website couldn't be scraped.", 'error');
+      if (!startRes.ok) {
+        const err = await startRes.json().catch(() => ({}));
+        showStatus(err.detail || "Failed to start scrape.", 'error');
         document.getElementById('emptyState').style.display = 'block';
         setLoading(btn, false, 'Get Products'); return;
       }
+      const { job_id } = await startRes.json();
 
-      handleScrapeResponse(data, 'emptyState', 'driveLinkBar', 'driveLinkAnchor', 'productGrid');
+      // Step 2: poll until done
+      let elapsed = 0;
+      const POLL_INTERVAL = 3000;
+      const MAX_WAIT = 360000; // 6 minutes
+      while (elapsed < MAX_WAIT) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL));
+        elapsed += POLL_INTERVAL;
+
+        const pollRes = await fetch(`${API_BASE}/api/scrape-status/${job_id}`);
+        const job = await pollRes.json();
+
+        if (job.status === 'pending') continue;
+
+        if (job.status === 'error') {
+          showStatus(job.detail || "This website couldn't be scraped.", 'error');
+          document.getElementById('emptyState').style.display = 'block';
+          setLoading(btn, false, 'Get Products'); return;
+        }
+
+        if (job.status === 'done') {
+          handleScrapeResponse(job.result, 'emptyState', 'driveLinkBar', 'driveLinkAnchor', 'productGrid');
+          setLoading(btn, false, 'Get Products'); return;
+        }
+      }
+
+      showStatus("Scrape timed out — the site took too long to respond.", 'error');
+      document.getElementById('emptyState').style.display = 'block';
     } catch (err) {
       showStatus(`Network error: ${err.message}`, 'error');
       document.getElementById('emptyState').style.display = 'block';

@@ -2,6 +2,7 @@ import asyncio
 import os
 import re
 import sys
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional
@@ -9,6 +10,7 @@ from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.background import BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -16,6 +18,9 @@ from pydantic import BaseModel
 SCRAPE_TIMEOUT_SECS = 300   # 5 minutes overall
 SCRAPE_MAX_RETRIES  = 2
 _executor = ThreadPoolExecutor(max_workers=4)
+
+# In-memory job store: job_id -> {status, result, detail}
+_jobs: dict[str, dict] = {}
 
 load_dotenv()
 
@@ -112,18 +117,12 @@ async def health():
 
 
 # ---------------------------------------------------------------------------
-# POST /api/scrape
+# POST /api/scrape  — starts a background job, returns job_id immediately
+# GET  /api/scrape-status/{job_id} — poll for result
 # ---------------------------------------------------------------------------
 
-@app.post("/api/scrape")
-async def scrape_endpoint(req: ScrapeRequest):
-    """
-    1. Scrape products from the given URL.
-    2. Download all media and upload to a new Google Drive folder.
-    3. Save a CSV to the same Drive folder.
-    4. Return the product list + Drive folder URL.
-    """
-
+async def _run_scrape_job(job_id: str, req: ScrapeRequest):
+    """Background task: scrape + Drive upload. Writes result into _jobs."""
     loop = asyncio.get_event_loop()
     deadline = loop.time() + SCRAPE_TIMEOUT_SECS
     products, platform = [], "unknown"
@@ -140,27 +139,28 @@ async def scrape_endpoint(req: ScrapeRequest):
             if products:
                 break
         except asyncio.TimeoutError:
-            raise HTTPException(
-                status_code=408,
-                detail="This website couldn't be scraped — it timed out after 5 minutes. "
-                       "The site may not expose a public product API.",
-            )
+            _jobs[job_id] = {
+                "status": "error",
+                "detail": "This website couldn't be scraped — it timed out after 5 minutes. "
+                          "The site may not expose a public product API.",
+            }
+            return
         except Exception as exc:
             print(f"[Scraper] Attempt {attempt + 1} failed: {exc}")
             if attempt < SCRAPE_MAX_RETRIES - 1:
                 await asyncio.sleep(2)
 
     if not products:
-        raise HTTPException(
-            status_code=404,
-            detail=f"This website couldn't be scraped after {SCRAPE_MAX_RETRIES} attempts. "
-                   "It may not be a Shopify or WordPress store, or the product API may be private.",
-        )
+        _jobs[job_id] = {
+            "status": "error",
+            "detail": f"This website couldn't be scraped after {SCRAPE_MAX_RETRIES} attempts. "
+                      "It may not be a Shopify or WordPress store, or the product API may be private.",
+        }
+        return
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     brand_safe = sanitize(req.brand)
 
-    # Try to create Drive folder — non-fatal if it fails
     folder_id = None
     folder_url = None
     drive_ok = False
@@ -171,10 +171,7 @@ async def scrape_endpoint(req: ScrapeRequest):
         print(f"[Drive] Folder creation failed: {exc}")
 
     csv_rows: list[dict] = []
-
     for prod in products:
-        # Use original source URLs in the CSV — service accounts cannot upload
-        # file content to personal Drive folders (no storage quota).
         row: dict = {
             "product_name": prod["product_name"],
             "price": prod["price"],
@@ -186,7 +183,6 @@ async def scrape_endpoint(req: ScrapeRequest):
             row[f"asset_{i+1}_type"] = asset["type"]
         csv_rows.append(row)
 
-    # Upload CSV to Drive (works when user OAuth credentials are configured)
     if drive_ok and folder_id and csv_rows:
         csv_headers = [
             "product_name", "price", "product_description", "brand",
@@ -204,12 +200,33 @@ async def scrape_endpoint(req: ScrapeRequest):
         except Exception as exc:
             print(f"[Drive] CSV upload error: {exc}")
 
-    return {
-        "products": products,
-        "platform": platform,
-        "count": len(products),
-        "drive_folder_url": folder_url,
+    _jobs[job_id] = {
+        "status": "done",
+        "result": {
+            "products": products,
+            "platform": platform,
+            "count": len(products),
+            "drive_folder_url": folder_url,
+        },
     }
+
+
+@app.post("/api/scrape", status_code=202)
+async def scrape_endpoint(req: ScrapeRequest, background_tasks: BackgroundTasks):
+    """Start a scrape job and return a job_id immediately."""
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {"status": "pending"}
+    background_tasks.add_task(_run_scrape_job, job_id, req)
+    return {"job_id": job_id}
+
+
+@app.get("/api/scrape-status/{job_id}")
+async def scrape_status(job_id: str):
+    """Poll for the result of a scrape job."""
+    job = _jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return job
 
 
 # ---------------------------------------------------------------------------
