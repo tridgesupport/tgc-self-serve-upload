@@ -154,6 +154,51 @@
     }
     #driveLinkBar a { color: #2d6a4f; font-weight: 600; }
 
+    /* ── Bulk-fill bar ── */
+    .bulk-bar {
+      display: none;
+      background: #f0f7f4;
+      border-bottom: 1px solid #c8e6c9;
+      padding: 10px 32px;
+      gap: 10px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+    .bulk-bar-label {
+      font-size: .75rem;
+      font-weight: 700;
+      color: var(--accent);
+      white-space: nowrap;
+      align-self: center;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+    }
+    .bulk-field { display: flex; flex-direction: column; gap: 3px; }
+    .bulk-field label { font-size: .7rem; color: var(--muted); font-weight: 600; }
+    .bulk-field input {
+      padding: 5px 9px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: .82rem;
+      width: 110px;
+      background: var(--surface);
+      outline: none;
+    }
+    .bulk-field input:focus { border-color: var(--accent); }
+    .bulk-apply-btn {
+      padding: 6px 14px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      align-self: flex-end;
+    }
+    .bulk-apply-btn:hover { background: var(--accent-hover); }
+
     /* ── Main content ── */
     main { padding: 24px 32px 120px; max-width: 1400px; margin: 0 auto; }
 
@@ -573,6 +618,17 @@
     Assets saved to Google Drive: <a id="driveLinkAnchor" href="#" target="_blank">Open folder</a>
   </div>
 
+  <div class="bulk-bar" id="productGrid-bulkBar">
+    <span class="bulk-bar-label">Apply to all:</span>
+    <div class="bulk-field"><label>Level 1</label><input type="text" placeholder="e.g. Hampers" data-field="level_1" /></div>
+    <div class="bulk-field"><label>Level 2</label><input type="text" placeholder="e.g. Occasion" data-field="level_2" /></div>
+    <div class="bulk-field"><label>Level 3</label><input type="text" placeholder="Sub category" data-field="level_3" /></div>
+    <div class="bulk-field"><label>Level 4</label><input type="text" placeholder="Sub category" data-field="level_4" /></div>
+    <div class="bulk-field"><label>Level 5</label><input type="text" placeholder="Sub category" data-field="level_5" /></div>
+    <div class="bulk-field"><label>Price</label><input type="text" placeholder="e.g. 29.99" data-field="price" /></div>
+    <button class="bulk-apply-btn" onclick="applyBulkFill('productGrid')">Apply to All Products</button>
+  </div>
+
   <main>
     <div id="emptyState">
       <div class="icon">🖼️</div>
@@ -610,6 +666,17 @@
     Assets saved to Google Drive: <a id="instagram-driveLinkAnchor" href="#" target="_blank" style="color:#2d6a4f;font-weight:600">Open folder</a>
   </div>
 
+  <div class="bulk-bar" id="instagram-grid-bulkBar">
+    <span class="bulk-bar-label">Apply to all:</span>
+    <div class="bulk-field"><label>Level 1</label><input type="text" placeholder="e.g. Hampers" data-field="level_1" /></div>
+    <div class="bulk-field"><label>Level 2</label><input type="text" placeholder="e.g. Occasion" data-field="level_2" /></div>
+    <div class="bulk-field"><label>Level 3</label><input type="text" placeholder="Sub category" data-field="level_3" /></div>
+    <div class="bulk-field"><label>Level 4</label><input type="text" placeholder="Sub category" data-field="level_4" /></div>
+    <div class="bulk-field"><label>Level 5</label><input type="text" placeholder="Sub category" data-field="level_5" /></div>
+    <div class="bulk-field"><label>Price</label><input type="text" placeholder="e.g. 29.99" data-field="price" /></div>
+    <button class="bulk-apply-btn" onclick="applyBulkFill('instagram-grid')">Apply to All Products</button>
+  </div>
+
   <main>
     <div id="instagram-emptyState" style="text-align:center;padding:80px 20px;color:var(--muted)">
       <div class="icon" style="font-size:3rem;margin-bottom:12px">📸</div>
@@ -632,6 +699,17 @@
   <div id="vendor-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
     <div class="spinner" id="vendor-statusSpinner" style="display:none"></div>
     <span id="vendor-statusText"></span>
+  </div>
+
+  <div class="bulk-bar" id="vendor-grid-bulkBar">
+    <span class="bulk-bar-label">Apply to all:</span>
+    <div class="bulk-field"><label>Level 1</label><input type="text" placeholder="e.g. Hampers" data-field="level_1" /></div>
+    <div class="bulk-field"><label>Level 2</label><input type="text" placeholder="e.g. Occasion" data-field="level_2" /></div>
+    <div class="bulk-field"><label>Level 3</label><input type="text" placeholder="Sub category" data-field="level_3" /></div>
+    <div class="bulk-field"><label>Level 4</label><input type="text" placeholder="Sub category" data-field="level_4" /></div>
+    <div class="bulk-field"><label>Level 5</label><input type="text" placeholder="Sub category" data-field="level_5" /></div>
+    <div class="bulk-field"><label>Price</label><input type="text" placeholder="e.g. 29.99" data-field="price" /></div>
+    <button class="bulk-apply-btn" onclick="applyBulkFill('vendor-grid')">Apply to All Products</button>
   </div>
 
   <main>
@@ -677,6 +755,17 @@
 
   <div id="drive-driveLinkBar" style="display:none;padding:9px 32px;background:#fff8e1;border-bottom:1px solid #ffe082;font-size:.84rem;color:#5a4000">
     Assets saved to Google Drive: <a id="drive-driveLinkAnchor" href="#" target="_blank" style="color:#2d6a4f;font-weight:600">Open folder</a>
+  </div>
+
+  <div class="bulk-bar" id="drive-grid-bulkBar">
+    <span class="bulk-bar-label">Apply to all:</span>
+    <div class="bulk-field"><label>Level 1</label><input type="text" placeholder="e.g. Hampers" data-field="level_1" /></div>
+    <div class="bulk-field"><label>Level 2</label><input type="text" placeholder="e.g. Occasion" data-field="level_2" /></div>
+    <div class="bulk-field"><label>Level 3</label><input type="text" placeholder="Sub category" data-field="level_3" /></div>
+    <div class="bulk-field"><label>Level 4</label><input type="text" placeholder="Sub category" data-field="level_4" /></div>
+    <div class="bulk-field"><label>Level 5</label><input type="text" placeholder="Sub category" data-field="level_5" /></div>
+    <div class="bulk-field"><label>Price</label><input type="text" placeholder="e.g. 29.99" data-field="price" /></div>
+    <button class="bulk-apply-btn" onclick="applyBulkFill('drive-grid')">Apply to All Products</button>
   </div>
 
   <main>
@@ -774,6 +863,22 @@
       : label;
   }
 
+  // ── Bulk-fill: apply non-empty values to all products in the current tab ──
+  function applyBulkFill(gridId) {
+    const bar = document.getElementById(gridId + '-bulkBar');
+    if (!bar) return;
+    const fields = ['level_1', 'level_2', 'level_3', 'level_4', 'level_5', 'price'];
+    const updates = {};
+    fields.forEach(f => {
+      const input = bar.querySelector(`[data-field="${f}"]`);
+      if (input && input.value.trim()) updates[f] = input.value.trim();
+    });
+    if (!Object.keys(updates).length) return;
+    S().productState.forEach(prod => Object.assign(prod, updates));
+    renderGrid(gridId);
+    updateActionBar();
+  }
+
   // ── Shared function to handle a scrape API response ──
   function handleScrapeResponse(data, emptyId, linkBarId, linkAnchorId, gridId) {
     const products = data.products || [];
@@ -795,6 +900,8 @@
       `Found ${products.length} file${products.length !== 1 ? 's' : ''}${label ? ' (' + label + ')' : ''}. Click images to preview, use ✓ to select.`,
       'success'
     );
+    const bulkBar = document.getElementById(gridId + '-bulkBar');
+    if (bulkBar) bulkBar.style.display = products.length ? 'flex' : 'none';
     renderGrid(gridId);
     updateActionBar();
   }
@@ -971,6 +1078,7 @@
         `Loaded ${data.count} product${data.count !== 1 ? 's' : ''} from the sheet. Click images to preview, use ✓ to select.`,
         'success'
       );
+      document.getElementById('vendor-grid-bulkBar').style.display = data.count ? 'flex' : 'none';
       renderGrid('vendor-grid');
       updateActionBar();
     } catch (err) {
