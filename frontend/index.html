@@ -1660,10 +1660,8 @@ function StoreInfoStage({ data, update }) {
             <Sel value={data.plan} onChange={v=>update("plan",v)} options={[
               {v:"",l:"Select plan…"},{v:"basic",l:"Basic ($39/mo)"},{v:"shopify",l:"Shopify ($105/mo)"},
               {v:"advanced",l:"Advanced ($399/mo)"},{v:"plus",l:"Plus ($2,500/mo)"}]} /></Fld>
-          <Fld><Lbl required>Currency</Lbl>
-            <Sel value={data.currency||"AUD"} onChange={v=>update("currency",v)} options={[
-              {v:"AUD",l:"AUD — Australian Dollar"},{v:"USD",l:"USD — US Dollar"},
-              {v:"GBP",l:"GBP — British Pound"},{v:"EUR",l:"EUR — Euro"},{v:"INR",l:"INR — Indian Rupee"}]} /></Fld>
+          <Fld><Lbl>Currency</Lbl>
+            <Inp value="INR — Indian Rupee" onChange={()=>{}} disabled /></Fld>
         </Row2>
         <Fld><Lbl optional>Store Logo URL</Lbl>
           <Inp value={data.logoUrl} onChange={v=>update("logoUrl",v)} placeholder="https://..." isMono /></Fld>
@@ -1815,34 +1813,62 @@ function ShopifyStage({ data, update }) {
 
 // ─── Stage 4: Payouts ────────────────────────────────────────────
 function PayoutsStage({ data, update }) {
+  const hasPlan = !!data.plan;
   return (
-    <Card title="Bank Payout Details" subtitle="Where your earnings will be transferred">
-      <div style={{ background:VT.greenBg, border:`1px solid ${VT.green}33`, borderRadius:7, padding:"11px 13px", marginBottom:16 }}>
-        <p style={{ fontSize:12, color:VT.green, lineHeight:1.6, margin:0 }}>
-          Payouts are processed within 5 business days of each payout cycle. Bank details are encrypted and used only for transfers.
-        </p>
-      </div>
-      <Row2>
-        <Fld><Lbl required>Account Holder Name</Lbl>
-          <Inp value={data.accountName} onChange={v=>update("accountName",v)} placeholder="As per bank records" /></Fld>
-        <Fld><Lbl required>Bank Name</Lbl>
-          <Inp value={data.bankName} onChange={v=>update("bankName",v)} placeholder="e.g. HDFC Bank" /></Fld>
-      </Row2>
-      <Row2>
-        <Fld><Lbl required>Account Number</Lbl>
-          <Inp value={data.accountNumber} onChange={v=>update("accountNumber",v)} placeholder="Your account number" isMono /></Fld>
-        <Fld><Lbl required>IFSC Code</Lbl>
-          <Inp value={data.ifsc} onChange={v=>update("ifsc",(v||"").toUpperCase())} placeholder="HDFC0001234" isMono /></Fld>
-      </Row2>
-      <Row2>
+    <>
+      {hasPlan && (
+        <Card title="Stripe Connect" subtitle="Connect your Stripe account to receive payouts automatically">
+          <div style={{ background:VT.greenBg, border:`1px solid ${VT.green}33`, borderRadius:7, padding:"11px 13px", marginBottom:16 }}>
+            <p style={{ fontSize:12, color:VT.green, lineHeight:1.6, margin:0 }}>
+              Connect your Stripe account to receive your earnings directly. You'll be redirected to Stripe's secure authorisation page.
+            </p>
+          </div>
+          {data.stripeConnected ? (
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"13px 16px", background:VT.greenBg, borderRadius:8, border:`1.5px solid ${VT.green}44` }}>
+              <span style={{ fontSize:20 }}>✅</span>
+              <div style={{ flex:1 }}>
+                <p style={{ margin:0, fontWeight:700, color:VT.green, fontSize:13 }}>Stripe account connected</p>
+                <p style={{ margin:0, fontSize:11, color:VT.inkMid, fontFamily:mono }}>{data.stripeAccountId}</p>
+              </div>
+              <Btn variant="ghost" size="sm" onClick={()=>{ update("stripeConnected",false); update("stripeAccountId",""); }}>Disconnect</Btn>
+            </div>
+          ) : (
+            <div style={{ textAlign:"center", padding:"24px 16px", border:`2px dashed ${VT.border}`, borderRadius:8 }}>
+              <div style={{ fontSize:32, marginBottom:10 }}>🏦</div>
+              <p style={{ fontSize:13, color:VT.inkMid, marginBottom:16, lineHeight:1.6 }}>
+                Click below to connect your Stripe account.<br/>
+                <span style={{ fontSize:11, color:VT.inkLight }}>Stripe OAuth integration coming soon — this will redirect to Stripe.</span>
+              </p>
+              <Btn onClick={()=>{ /* Stripe OAuth redirect will be wired here */ alert("Stripe OAuth coming soon."); }}>
+                Connect Stripe Account →
+              </Btn>
+            </div>
+          )}
+        </Card>
+      )}
+      <Card title="Bank Payout Details" subtitle="Where your earnings will be transferred">
+        <div style={{ background:VT.greenBg, border:`1px solid ${VT.green}33`, borderRadius:7, padding:"11px 13px", marginBottom:16 }}>
+          <p style={{ fontSize:12, color:VT.green, lineHeight:1.6, margin:0 }}>
+            Payouts are processed within 5 business days of each payout cycle. Bank details are encrypted and used only for transfers.
+          </p>
+        </div>
+        <Row2>
+          <Fld><Lbl required>Account Holder Name</Lbl>
+            <Inp value={data.accountName} onChange={v=>update("accountName",v)} placeholder="As per bank records" /></Fld>
+          <Fld><Lbl required>Bank Name</Lbl>
+            <Inp value={data.bankName} onChange={v=>update("bankName",v)} placeholder="e.g. HDFC Bank" /></Fld>
+        </Row2>
+        <Row2>
+          <Fld><Lbl required>Account Number</Lbl>
+            <Inp value={data.accountNumber} onChange={v=>update("accountNumber",v)} placeholder="Your account number" isMono /></Fld>
+          <Fld><Lbl required>IFSC Code</Lbl>
+            <Inp value={data.ifsc} onChange={v=>update("ifsc",(v||"").toUpperCase())} placeholder="HDFC0001234" isMono /></Fld>
+        </Row2>
         <Fld><Lbl required>Account Type</Lbl>
           <Sel value={data.accountType||""} onChange={v=>update("accountType",v)} options={[
             {v:"",l:"Select…"},{v:"savings",l:"Savings"},{v:"current",l:"Current"}]} /></Fld>
-        <Fld><Lbl optional>Payout Preference</Lbl>
-          <Sel value={data.payoutSchedule||"monthly"} onChange={v=>update("payoutSchedule",v)} options={[
-            {v:"weekly",l:"Weekly"},{v:"monthly",l:"Monthly (1st)"}]} /></Fld>
-      </Row2>
-    </Card>
+      </Card>
+    </>
   );
 }
 
@@ -1899,7 +1925,33 @@ function CatalogueStage({ data, update }) {
 }
 
 // ─── Stage 6: Fulfilment ─────────────────────────────────────────
+const YesNo = ({ value, onChange, label }) => (
+  <Fld>
+    <Lbl>{label}</Lbl>
+    <div style={{ display:"flex", gap:10 }}>
+      {["Yes","No"].map(opt => {
+        const selected = opt==="Yes" ? value===true : value===false;
+        return (
+          <div key={opt} onClick={()=>onChange(opt==="Yes")}
+            style={{ flex:1, padding:"9px 13px", borderRadius:6, cursor:"pointer", textAlign:"center",
+              background:selected?VT.accentBg:VT.surfaceAlt,
+              border:`1.5px solid ${selected?VT.accent:VT.border}`,
+              fontWeight:selected?700:400, fontSize:13, color:selected?VT.accent:VT.ink,
+              transition:"all 0.15s" }}>
+            {opt}
+          </div>
+        );
+      })}
+    </div>
+  </Fld>
+);
+
 function FulfilmentStage({ data, update }) {
+  const CITIES = ["Mumbai","Delhi","Gurgaon","Chennai"];
+  const activeCities = data.warehouseCities || [];
+  const toggleCity = city => update("warehouseCities",
+    activeCities.includes(city) ? activeCities.filter(c=>c!==city) : [...activeCities, city]);
+
   return (
     <Card title="Fulfilment Rules" subtitle="How orders are processed and shipped">
       <Row2>
@@ -1912,34 +1964,47 @@ function FulfilmentStage({ data, update }) {
           <Sel value={data.customProcessingDays||"7"} onChange={v=>update("customProcessingDays",v)}
             options={[3,5,7,10,14,21].map(d=>({v:String(d),l:`${d} business day${d>1?"s":""}`}))} /></Fld>
       </Row2>
+
       <Fld>
-        <Lbl required>Shipping Regions</Lbl>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-          {[["au-only","🇦🇺 Australia only"],["au-nz","🌏 Australia + NZ"],
-            ["au-intl","🌍 Australia + International"],["worldwide","🌐 Worldwide"]].map(([v,l])=>(
-            <div key={v} onClick={()=>update("shippingRegion",v)}
-              style={{ padding:"9px 13px", borderRadius:6, cursor:"pointer", transition:"all 0.15s",
-                background:data.shippingRegion===v?VT.accentBg:VT.surfaceAlt,
-                border:`1.5px solid ${data.shippingRegion===v?VT.accent:VT.border}` }}>
-              <p style={{ margin:0, fontSize:12, fontFamily:sans,
-                fontWeight:data.shippingRegion===v?700:400, color:data.shippingRegion===v?VT.accent:VT.ink }}>{l}</p>
-            </div>
-          ))}
+        <Lbl required>Warehouse / Dispatch Cities</Lbl>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          {CITIES.map(city => {
+            const on = activeCities.includes(city);
+            return (
+              <div key={city} onClick={()=>toggleCity(city)}
+                style={{ padding:"8px 16px", borderRadius:6, cursor:"pointer", transition:"all 0.15s",
+                  background:on?VT.accentBg:VT.surfaceAlt, border:`1.5px solid ${on?VT.accent:VT.border}`,
+                  fontSize:13, fontWeight:on?700:400, color:on?VT.accent:VT.ink }}>
+                {on && <span style={{ marginRight:5, fontSize:11 }}>✓</span>}{city}
+              </div>
+            );
+          })}
         </div>
+        {activeCities.length===0 && <p style={{ marginTop:6, fontSize:11, color:VT.red }}>Select at least one city.</p>}
       </Fld>
-      <div style={{ display:"grid", gap:7 }}>
-        <Tog value={!!data.acceptsReturns} onChange={v=>update("acceptsReturns",v)}
-          label="Accepts returns on standard (non-custom) orders" />
-        {data.acceptsReturns && (
-          <div style={{ paddingLeft:16 }}>
-            <Lbl>Return Window</Lbl>
-            <Sel value={data.returnDays||"14"} onChange={v=>update("returnDays",v)}
-              options={[7,14,21,30].map(d=>({v:String(d),l:`${d} days from delivery`}))} />
-          </div>
-        )}
-        <Tog value={!!data.lowStockAlerts} onChange={v=>update("lowStockAlerts",v)}
-          label="Email me when stock drops below 5 units" />
-      </div>
+
+      <Fld>
+        <Lbl required>Shipping Region</Lbl>
+        <Sel value={data.shippingRegion||""} onChange={v=>update("shippingRegion",v)} options={[
+          {v:"",l:"Select region…"},
+          {v:"domestic",l:"India only"},
+          {v:"in-sea",l:"India + South-East Asia"},
+          {v:"in-intl",l:"India + International"},
+          {v:"worldwide",l:"Worldwide"},
+        ]} />
+      </Fld>
+
+      <YesNo value={data.acceptsReturns} onChange={v=>update("acceptsReturns",v)}
+        label="Accepts returns on standard (non-custom) orders?" />
+      {data.acceptsReturns === true && (
+        <Fld>
+          <Lbl>Return Window</Lbl>
+          <Sel value={data.returnDays||"14"} onChange={v=>update("returnDays",v)}
+            options={[7,14,21,30].map(d=>({v:String(d),l:`${d} days from delivery`}))} />
+        </Fld>
+      )}
+      <YesNo value={data.lowStockAlerts} onChange={v=>update("lowStockAlerts",v)}
+        label="Email me when stock drops below 5 units?" />
     </Card>
   );
 }
@@ -1958,7 +2023,7 @@ function ReviewStage({ data, onSubmit }) {
     { label:"Webhook secret",       ok:!!data.webhookSecret },
     { label:"Bank details",         ok:!!(data.accountName && data.accountNumber && data.ifsc) },
     { label:"Product categories",   ok:(data.categories||[]).length>0 },
-    { label:"Shipping region",      ok:!!data.shippingRegion },
+    { label:"Shipping region",      ok:!!data.shippingRegion && (data.warehouseCities||[]).length>0 },
   ];
   const passed = checks.filter(c=>c.ok).length;
   const pct = Math.round((passed/checks.length)*100);
@@ -2037,7 +2102,7 @@ const STAGES = [
 function VendorRegistration() {
   const saved = loadReg();
   const [data, setData] = useState(saved || {
-    vendorId:genId(), currency:"AUD", apiVersion:"2025-04",
+    vendorId:genId(), currency:"INR", apiVersion:"2025-04",
     processingDays:"3", oosMode:"hide", createdAt:today(),
   });
   const [stage, setStage] = useState(1);
@@ -2064,7 +2129,7 @@ function VendorRegistration() {
 
   const reset = () => {
     if (!window.confirm("Start a new registration? Your saved progress will be cleared.")) return;
-    const fresh = { vendorId:genId(), currency:"AUD", apiVersion:"2025-04",
+    const fresh = { vendorId:genId(), currency:"INR", apiVersion:"2025-04",
       processingDays:"3", oosMode:"hide", createdAt:today() };
     saveReg(fresh);
     setData(fresh);
