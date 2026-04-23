@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TGC Self-Serve Upload</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -603,6 +606,7 @@
     <button class="tab-btn"        data-tab="instagram" onclick="switchTab('instagram')">Instagram Handles</button>
     <button class="tab-btn"        data-tab="vendor"    onclick="switchTab('vendor')">Vendor Uploads</button>
     <button class="tab-btn"        data-tab="igpost"    onclick="switchTab('igpost')">View as IG Post</button>
+    <button class="tab-btn"        data-tab="vendor-reg" onclick="switchTab('vendor-reg')">Vendor Registration</button>
   </div>
 </div>
 
@@ -777,6 +781,11 @@
     <div id="drive-grid"></div>
   </main>
 
+</div>
+
+<!-- ══════════ TAB: Vendor Registration ══════════ -->
+<div class="tab-panel" id="tab-vendor-reg">
+  <div id="vendor-reg-root"></div>
 </div>
 
 <!-- ── Shared action bar (position:fixed, always visible when items selected) ── -->
@@ -1495,6 +1504,693 @@
   ['vendorSheetInput','vendorBrandInput'].forEach(id =>
     document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') getVendorData(); })
   );
+</script>
+
+<script type="text/babel">
+// ════════════════════════════════════════════════════════════════
+// VENDOR REGISTRATION — React component
+// ════════════════════════════════════════════════════════════════
+const { useState, useCallback } = React;
+
+// ─── Design tokens (TGC theme) ──────────────────────────────────
+const VT = {
+  bg:"#f7f5f2", surface:"#ffffff", surfaceAlt:"#f4f3ef",
+  border:"#e2ddd8", borderDark:"#c8c5bc",
+  ink:"#1a1a1a", inkMid:"#6b6b6b", inkLight:"#a9a9a9",
+  accent:"#2d6a4f", accentBg:"#e8f4f0", accentDark:"#1b4332",
+  amber:"#b07d1a", amberBg:"#fdf8ed",
+  red:"#c0392b", redBg:"#fdecea",
+  green:"#2d6a4f", greenBg:"#e8f4f0",
+  shadow:"0 2px 8px rgba(0,0,0,0.07)",
+};
+const mono = `'Courier New', monospace`;
+const sans = `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+
+// ─── Persistence ────────────────────────────────────────────────
+const REG_KEY = "tgc_vendor_reg_v1";
+const loadReg  = () => { try { const r = localStorage.getItem(REG_KEY); return r ? JSON.parse(r) : null; } catch { return null; } };
+const saveReg  = d  => { try { localStorage.setItem(REG_KEY, JSON.stringify(d)); } catch {} };
+const genId    = () => "TGC-" + Math.random().toString(36).substring(2,7).toUpperCase();
+const today    = () => new Date().toLocaleDateString("en-AU", { day:"2-digit", month:"short", year:"numeric" });
+
+// ─── Validators ─────────────────────────────────────────────────
+const validatePAN = v => /^[A-Z]{5}[0-9]{4}[A-Z]$/.test((v||"").toUpperCase());
+const validateGST = v => !v || /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/.test((v||"").toUpperCase());
+
+function verifyTokenLocally({ tokenType, token, storeUrl }) {
+  if (!storeUrl) return { status:"fail", headline:"Store URL missing",
+    explanation:"Enter your Shopify store URL in Stage 1 first.", errorCode:"STORE_URL_MISSING" };
+  if (!token)   return { status:"fail", headline:"Token is empty",
+    explanation:"Paste the token before clicking Verify.", errorCode:"TOKEN_FORMAT" };
+  if ((tokenType==="storefront"||tokenType==="admin") && !token.startsWith("shpat_") && token.length<32)
+    return { status:"fail", headline:"Incorrect token format",
+      explanation:"Shopify tokens start with 'shpat_' followed by 32 characters. Check you copied it fully.",
+      errorCode:"TOKEN_FORMAT" };
+  if (tokenType==="webhook_secret" && !token.startsWith("whsec_") && token.length<20)
+    return { status:"fail", headline:"Secret too short",
+      explanation:"Webhook secrets should start with 'whsec_' or be at least 20 characters.", errorCode:"TOKEN_FORMAT" };
+  return { status:"ok", headline:"Format looks correct",
+    explanation:"Token format matches Shopify's structure. It will be fully validated when we connect your store.",
+    storeName:(storeUrl||"").replace(".myshopify.com",""), productCount:0, planName:"" };
+}
+
+// ─── Shared UI atoms ────────────────────────────────────────────
+const Lbl = ({ children, required, optional }) => (
+  <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:5 }}>
+    <label style={{ fontSize:11, fontWeight:700, letterSpacing:"0.06em", color:VT.inkMid, textTransform:"uppercase", fontFamily:mono }}>{children}</label>
+    {required && <span style={{ fontSize:10, color:VT.red, fontWeight:700 }}>REQUIRED</span>}
+    {optional && <span style={{ fontSize:10, color:VT.inkLight }}>optional</span>}
+  </div>
+);
+
+const Inp = ({ value, onChange, placeholder, type="text", isMono=false, disabled=false, error=false }) => (
+  <input value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} type={type} disabled={disabled}
+    style={{ width:"100%", padding:"9px 12px", borderRadius:6, border:`1.5px solid ${error?VT.red:VT.border}`,
+      background:disabled?VT.surfaceAlt:VT.surface, color:disabled?VT.inkMid:VT.ink, fontSize:13,
+      fontFamily:isMono?mono:sans, transition:"border 0.15s", cursor:disabled?"not-allowed":"text", outline:"none" }} />
+);
+
+const Sel = ({ value, onChange, options, disabled=false }) => (
+  <select value={value||""} onChange={e=>onChange(e.target.value)} disabled={disabled}
+    style={{ width:"100%", padding:"9px 12px", borderRadius:6, border:`1.5px solid ${VT.border}`,
+      background:disabled?VT.surfaceAlt:VT.surface, color:VT.ink, fontSize:13, fontFamily:sans,
+      cursor:disabled?"not-allowed":"pointer", outline:"none" }}>
+    {options.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+  </select>
+);
+
+const Tog = ({ value, onChange, label }) => (
+  <div onClick={()=>onChange(!value)}
+    style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 13px",
+      background:VT.surfaceAlt, borderRadius:7, border:`1px solid ${VT.border}`, cursor:"pointer", userSelect:"none" }}>
+    <span style={{ fontSize:13, color:VT.ink, fontFamily:sans }}>{label}</span>
+    <div style={{ width:36, height:20, borderRadius:10, position:"relative", background:value?VT.accent:VT.border, transition:"background 0.2s", flexShrink:0 }}>
+      <div style={{ width:14, height:14, borderRadius:"50%", background:VT.surface, position:"absolute",
+        top:3, left:value?19:3, transition:"left 0.2s", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
+    </div>
+  </div>
+);
+
+const Btn = ({ children, onClick, variant="primary", size="md", disabled=false }) => {
+  const pad = { sm:"6px 14px", md:"9px 20px", lg:"12px 28px" }[size];
+  const s = { primary:{bg:VT.accent,color:"#fff",border:"none"}, ghost:{bg:"transparent",color:VT.inkMid,border:`1.5px solid ${VT.border}`}, danger:{bg:VT.redBg,color:VT.red,border:`1.5px solid ${VT.red}44`} }[variant];
+  return (
+    <button onClick={onClick} disabled={disabled}
+      style={{ padding:pad, borderRadius:6, border:s.border||"none", background:disabled?VT.surfaceAlt:s.bg,
+        color:disabled?VT.inkLight:s.color, fontWeight:700, fontSize:13, fontFamily:sans,
+        cursor:disabled?"not-allowed":"pointer", transition:"all 0.15s", whiteSpace:"nowrap" }}>
+      {children}
+    </button>
+  );
+};
+
+const Card = ({ title, subtitle, children }) => (
+  <div style={{ background:VT.surface, borderRadius:9, border:`1px solid ${VT.border}`, boxShadow:VT.shadow, marginBottom:18, overflow:"hidden" }}>
+    <div style={{ padding:"13px 18px", borderBottom:`1px solid ${VT.border}`, background:VT.surfaceAlt }}>
+      <h3 style={{ fontSize:13, fontWeight:700, color:VT.ink, fontFamily:sans, margin:0 }}>{title}</h3>
+      {subtitle && <p style={{ fontSize:11, color:VT.inkMid, marginTop:2, margin:0 }}>{subtitle}</p>}
+    </div>
+    <div style={{ padding:"18px" }}>{children}</div>
+  </div>
+);
+
+const Row2 = ({ children }) => <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>{children}</div>;
+const Fld  = ({ children }) => <div style={{ marginBottom:14 }}>{children}</div>;
+const Err  = ({ msg }) => msg ? <p style={{ marginTop:3, fontSize:11, color:VT.red, fontFamily:mono }}>{msg}</p> : null;
+
+const Guide = ({ title, steps }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginTop:5, borderRadius:5, border:`1px solid ${VT.accentBg}`, background:VT.accentBg, overflow:"hidden" }}>
+      <button onClick={()=>setOpen(!open)}
+        style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center",
+          padding:"7px 11px", background:"none", border:"none", cursor:"pointer", color:VT.accent, fontFamily:sans }}>
+        <span style={{ fontSize:12, fontWeight:700 }}>📖 {title}</span>
+        <span style={{ fontSize:12, transform:open?"rotate(180deg)":"none", transition:"0.2s" }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ padding:"4px 11px 11px" }}>
+          {steps.map((s,i) => (
+            <div key={i} style={{ display:"flex", gap:9, marginTop:7 }}>
+              <span style={{ width:18, height:18, borderRadius:"50%", background:VT.accent, color:"#fff",
+                fontSize:10, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:1 }}>{i+1}</span>
+              <p style={{ fontSize:12, color:VT.ink, lineHeight:1.55, fontFamily:sans, margin:0 }} dangerouslySetInnerHTML={{ __html:s }} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Stage 1: Store Info ─────────────────────────────────────────
+function StoreInfoStage({ data, update }) {
+  return (
+    <>
+      <Card title="Brand Identity" subtitle="How your store appears on The Gift Collective">
+        <Row2>
+          <Fld><Lbl required>Brand / Business Name</Lbl>
+            <Inp value={data.brandName} onChange={v=>update("brandName",v)} placeholder="e.g. Sarah's Ceramics" /></Fld>
+          <Fld><Lbl required>Shopify Store URL</Lbl>
+            <Inp value={data.storeUrl} onChange={v=>update("storeUrl",v)} placeholder="yourstore.myshopify.com" isMono />
+            <Err msg={data.storeUrl && !data.storeUrl.includes(".") ? "Enter full domain, e.g. store.myshopify.com" : null} /></Fld>
+        </Row2>
+        <Row2>
+          <Fld><Lbl required>Shopify Plan</Lbl>
+            <Sel value={data.plan} onChange={v=>update("plan",v)} options={[
+              {v:"",l:"Select plan…"},{v:"basic",l:"Basic ($39/mo)"},{v:"shopify",l:"Shopify ($105/mo)"},
+              {v:"advanced",l:"Advanced ($399/mo)"},{v:"plus",l:"Plus ($2,500/mo)"}]} /></Fld>
+          <Fld><Lbl required>Currency</Lbl>
+            <Sel value={data.currency||"AUD"} onChange={v=>update("currency",v)} options={[
+              {v:"AUD",l:"AUD — Australian Dollar"},{v:"USD",l:"USD — US Dollar"},
+              {v:"GBP",l:"GBP — British Pound"},{v:"EUR",l:"EUR — Euro"},{v:"INR",l:"INR — Indian Rupee"}]} /></Fld>
+        </Row2>
+        <Fld><Lbl optional>Store Logo URL</Lbl>
+          <Inp value={data.logoUrl} onChange={v=>update("logoUrl",v)} placeholder="https://..." isMono /></Fld>
+      </Card>
+      <Card title="Contact Details" subtitle="Primary contact for orders and support">
+        <Row2>
+          <Fld><Lbl required>Contact Name</Lbl>
+            <Inp value={data.contactName} onChange={v=>update("contactName",v)} placeholder="Full name" /></Fld>
+          <Fld><Lbl required>Contact Email</Lbl>
+            <Inp value={data.contactEmail} onChange={v=>update("contactEmail",v)} placeholder="you@store.com" type="email" /></Fld>
+        </Row2>
+        <Row2>
+          <Fld><Lbl required>Contact Phone</Lbl>
+            <Inp value={data.contactPhone} onChange={v=>update("contactPhone",v)} placeholder="+61 400 000 000" type="tel" /></Fld>
+          <Fld><Lbl optional>Order Notification Email</Lbl>
+            <Inp value={data.notifyEmail} onChange={v=>update("notifyEmail",v)} placeholder="orders@store.com" type="email" /></Fld>
+        </Row2>
+      </Card>
+    </>
+  );
+}
+
+// ─── Stage 2: Tax & Compliance ───────────────────────────────────
+function TaxStage({ data, update }) {
+  const panVal = (data.pan||"").toUpperCase();
+  const gstVal = (data.gst||"").toUpperCase();
+  const panOk  = validatePAN(panVal);
+  const gstOk  = validateGST(gstVal);
+  return (
+    <Card title="Tax & Compliance" subtitle="Required for payouts and compliance">
+      <div style={{ background:VT.amberBg, border:`1px solid ${VT.amber}44`, borderRadius:7, padding:"11px 13px", marginBottom:18 }}>
+        <p style={{ fontSize:12, color:VT.amber, lineHeight:1.6, margin:0 }}>
+          <strong>Why do we need this?</strong> PAN is required for any payout exceeding ₹20,000. GST is needed if you are a GST-registered business.
+        </p>
+      </div>
+      <Fld>
+        <Lbl required>PAN Number</Lbl>
+        <Inp value={panVal} onChange={v=>update("pan",v.toUpperCase())} placeholder="ABCDE1234F" isMono error={panVal && !panOk} />
+        {panVal && !panOk && <Err msg="PAN format: 5 letters, 4 digits, 1 letter — e.g. ABCDE1234F" />}
+        {panOk && <p style={{ marginTop:3, fontSize:11, color:VT.green, margin:"3px 0 0" }}>✓ Valid PAN format</p>}
+        <Guide title="Where do I find my PAN?" steps={[
+          "Your PAN is printed on your <strong>PAN card</strong> issued by the Income Tax Department.",
+          "If you're a business, use your <strong>company's PAN</strong> (not individual).",
+          "Enter exactly as shown — 10 characters, all caps, format: AAAAA9999A.",
+        ]} />
+      </Fld>
+      <Fld>
+        <Lbl optional>GST Number</Lbl>
+        <Inp value={gstVal} onChange={v=>update("gst",v.toUpperCase())} placeholder="22AAAAA0000A1Z5" isMono error={gstVal && !gstOk} />
+        {gstVal && !gstOk && <Err msg="GST format: 15 characters — e.g. 22AAAAA0000A1Z5" />}
+        {gstVal && gstOk && <p style={{ marginTop:3, fontSize:11, color:VT.green, margin:"3px 0 0" }}>✓ Valid GST format</p>}
+        <p style={{ marginTop:4, fontSize:11, color:VT.inkLight, margin:"4px 0 0" }}>Required only if your annual turnover exceeds ₹40 lakhs or you've voluntarily registered for GST.</p>
+      </Fld>
+      <Fld>
+        <Lbl optional>Business Type</Lbl>
+        <Sel value={data.businessType||""} onChange={v=>update("businessType",v)} options={[
+          {v:"",l:"Select…"},{v:"sole_proprietor",l:"Sole Proprietor"},{v:"partnership",l:"Partnership Firm"},
+          {v:"pvt_ltd",l:"Private Limited Company"},{v:"llp",l:"LLP"},{v:"individual",l:"Individual"}]} />
+      </Fld>
+    </Card>
+  );
+}
+
+// ─── Stage 3: Shopify Setup ──────────────────────────────────────
+function ShopifyStage({ data, update }) {
+  const [results, setResults] = useState({});
+
+  const verify = (field, tokenType) => {
+    setResults(r => ({ ...r, [field]: verifyTokenLocally({ tokenType, token:data[field], storeUrl:data.storeUrl }) }));
+  };
+
+  const renderTokenField = (field, tokenType, label, placeholder, guide) => {
+    const result = results[field];
+    const statusColor = !result ? VT.inkMid : result.status==="ok" ? VT.green : VT.red;
+    return (
+      <Fld key={field}>
+        <Lbl required>{label}</Lbl>
+        <div style={{ display:"flex", gap:7 }}>
+          <div style={{ flex:1 }}>
+            <Inp value={data[field]} onChange={v=>{ update(field,v); setResults(r=>({...r,[field]:null})); }}
+              placeholder={placeholder} isMono error={result?.status==="fail"} />
+          </div>
+          <button onClick={()=>verify(field, tokenType)} disabled={!data[field]}
+            style={{ padding:"0 13px", borderRadius:6, border:`1.5px solid ${VT.border}`,
+              background:result?(result.status==="ok"?VT.greenBg:VT.redBg):VT.surfaceAlt,
+              color:statusColor, fontWeight:700, fontSize:11, cursor:!data[field]?"not-allowed":"pointer",
+              whiteSpace:"nowrap", fontFamily:mono, minWidth:70, opacity:!data[field]?0.5:1, transition:"all 0.2s" }}>
+            {result?.status==="ok" ? "✓ OK" : result?.status==="fail" ? "✗ FAIL" : "VERIFY"}
+          </button>
+        </div>
+        {result && (
+          <div style={{ marginTop:8, borderRadius:7, overflow:"hidden", border:`1.5px solid ${result.status==="ok"?VT.green+"55":VT.red+"44"}` }}>
+            <div style={{ display:"flex", alignItems:"center", gap:9, padding:"9px 13px", background:result.status==="ok"?VT.greenBg:VT.redBg }}>
+              <span style={{ fontSize:15 }}>{result.status==="ok"?"✅":"❌"}</span>
+              <p style={{ margin:0, fontWeight:700, fontSize:12, color:result.status==="ok"?VT.green:VT.red }}>{result.headline}</p>
+            </div>
+            <div style={{ padding:"9px 13px", background:VT.surface }}>
+              <p style={{ margin:0, fontSize:12, color:VT.ink, lineHeight:1.55 }}>{result.explanation}</p>
+            </div>
+          </div>
+        )}
+        <Guide title={`How to get your ${label}`} steps={guide} />
+      </Fld>
+    );
+  };
+
+  return (
+    <>
+      <div style={{ background:VT.amberBg, border:`1px solid ${VT.amber}33`, borderRadius:7, padding:"11px 13px", marginBottom:12 }}>
+        <p style={{ fontSize:12, color:VT.amber, lineHeight:1.6, margin:0 }}>
+          <strong>Don't worry if this looks technical.</strong> Click <em>"How to get your…"</em> below each field for step-by-step instructions.
+        </p>
+      </div>
+      {!data.storeUrl && (
+        <div style={{ background:VT.redBg, border:`1px solid ${VT.red}33`, borderRadius:7, padding:"9px 13px", marginBottom:12 }}>
+          <p style={{ fontSize:12, color:VT.red, margin:0 }}>⚠️ <strong>Store URL missing.</strong> Go back to Stage 1 and enter your Shopify URL first.</p>
+        </div>
+      )}
+      <Card title="Shopify API Tokens" subtitle="Needed to read your products and receive orders">
+        {renderTokenField("storefrontToken","storefront","Storefront API Token","shpat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",[
+          `Log in to <strong>yourstore.myshopify.com/admin</strong>`,
+          `Click <strong>Settings → Apps and sales channels → Develop apps</strong>`,
+          `Click <strong>"Create an app"</strong> — name it <em>The Gift Collective</em>`,
+          `Click <strong>"Configure Storefront API scopes"</strong> — tick: Read products, Read product listings, Read inventory`,
+          `Click Save → Install app → <strong>"Reveal token once"</strong> — paste it here immediately`,
+        ])}
+        {renderTokenField("adminToken","admin","Admin API Token","shpat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",[
+          `In the same app, go to the <strong>Configuration</strong> tab`,
+          `Under <strong>"Admin API integration"</strong> click <strong>Edit</strong>`,
+          `Tick: Read orders, Write orders, Read products, Write inventory → Save`,
+          `Go to the <strong>"API credentials"</strong> tab → <strong>"Reveal token once"</strong>`,
+        ])}
+        {renderTokenField("webhookSecret","webhook_secret","Webhook Signing Secret","whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",[
+          `In Shopify admin go to <strong>Settings → Notifications</strong>`,
+          `Scroll to the bottom and click <strong>"Create webhook"</strong>`,
+          `Set event: <em>Order creation</em> · Format: <em>JSON</em>`,
+          `After saving, copy the <strong>Signing secret</strong> shown — paste it here`,
+        ])}
+        <Fld>
+          <Lbl>API Version</Lbl>
+          <Sel value={data.apiVersion||"2025-04"} onChange={v=>update("apiVersion",v)} options={[
+            {v:"2025-04",l:"2025-04 (Recommended)"},{v:"2025-01",l:"2025-01"},{v:"2024-10",l:"2024-10 (Legacy)"}]} />
+          <p style={{ marginTop:4, fontSize:11, color:VT.inkLight, margin:"4px 0 0" }}>Leave as recommended unless your store requires a specific version.</p>
+        </Fld>
+      </Card>
+    </>
+  );
+}
+
+// ─── Stage 4: Payouts ────────────────────────────────────────────
+function PayoutsStage({ data, update }) {
+  return (
+    <Card title="Bank Payout Details" subtitle="Where your earnings will be transferred">
+      <div style={{ background:VT.greenBg, border:`1px solid ${VT.green}33`, borderRadius:7, padding:"11px 13px", marginBottom:16 }}>
+        <p style={{ fontSize:12, color:VT.green, lineHeight:1.6, margin:0 }}>
+          Payouts are processed within 5 business days of each payout cycle. Bank details are encrypted and used only for transfers.
+        </p>
+      </div>
+      <Row2>
+        <Fld><Lbl required>Account Holder Name</Lbl>
+          <Inp value={data.accountName} onChange={v=>update("accountName",v)} placeholder="As per bank records" /></Fld>
+        <Fld><Lbl required>Bank Name</Lbl>
+          <Inp value={data.bankName} onChange={v=>update("bankName",v)} placeholder="e.g. HDFC Bank" /></Fld>
+      </Row2>
+      <Row2>
+        <Fld><Lbl required>Account Number</Lbl>
+          <Inp value={data.accountNumber} onChange={v=>update("accountNumber",v)} placeholder="Your account number" isMono /></Fld>
+        <Fld><Lbl required>IFSC Code</Lbl>
+          <Inp value={data.ifsc} onChange={v=>update("ifsc",(v||"").toUpperCase())} placeholder="HDFC0001234" isMono /></Fld>
+      </Row2>
+      <Row2>
+        <Fld><Lbl required>Account Type</Lbl>
+          <Sel value={data.accountType||""} onChange={v=>update("accountType",v)} options={[
+            {v:"",l:"Select…"},{v:"savings",l:"Savings"},{v:"current",l:"Current"}]} /></Fld>
+        <Fld><Lbl optional>Payout Preference</Lbl>
+          <Sel value={data.payoutSchedule||"monthly"} onChange={v=>update("payoutSchedule",v)} options={[
+            {v:"weekly",l:"Weekly"},{v:"monthly",l:"Monthly (1st)"}]} /></Fld>
+      </Row2>
+    </Card>
+  );
+}
+
+// ─── Stage 5: Catalogue ──────────────────────────────────────────
+function CatalogueStage({ data, update }) {
+  const CATS = ["Candles & Diffusers","Home Décor","Jewellery","Skincare & Beauty",
+    "Food & Gourmet","Stationery","Toys & Kids","Clothing & Accessories",
+    "Art & Prints","Wellness","Hampers & Gift Sets","Other"];
+  const active = data.categories || [];
+  const toggle = cat => update("categories", active.includes(cat) ? active.filter(c=>c!==cat) : [...active, cat]);
+
+  return (
+    <>
+      <Card title="Product Categories" subtitle="Select all that apply to your products">
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+          {CATS.map(cat => {
+            const on = active.includes(cat);
+            return (
+              <div key={cat} onClick={()=>toggle(cat)}
+                style={{ padding:"9px 12px", borderRadius:6, cursor:"pointer",
+                  background:on?VT.accentBg:VT.surfaceAlt, border:`1.5px solid ${on?VT.accent:VT.border}`,
+                  transition:"all 0.15s", display:"flex", alignItems:"center", gap:7 }}>
+                <div style={{ width:13, height:13, borderRadius:3, flexShrink:0, background:on?VT.accent:VT.surface,
+                  border:`2px solid ${on?VT.accent:VT.borderDark}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {on && <span style={{ fontSize:8, color:"#fff", fontWeight:900 }}>✓</span>}
+                </div>
+                <span style={{ fontSize:12, color:on?VT.accent:VT.ink, fontWeight:on?700:400 }}>{cat}</span>
+              </div>
+            );
+          })}
+        </div>
+        {active.length===0 && <p style={{ marginTop:10, fontSize:11, color:VT.red }}>Select at least one category.</p>}
+      </Card>
+      <Card title="Catalogue Details" subtitle="Help us understand your product range">
+        <Row2>
+          <Fld><Lbl required>Number of SKUs</Lbl>
+            <Sel value={data.skuCount||""} onChange={v=>update("skuCount",v)} options={[
+              {v:"",l:"Select…"},{v:"1-10",l:"1–10 products"},{v:"11-50",l:"11–50 products"},
+              {v:"51-200",l:"51–200 products"},{v:"200+",l:"200+ products"}]} /></Fld>
+          <Fld><Lbl required>Average Price Range</Lbl>
+            <Sel value={data.priceRange||""} onChange={v=>update("priceRange",v)} options={[
+              {v:"",l:"Select…"},{v:"under-50",l:"Under $50"},{v:"50-150",l:"$50–$150"},
+              {v:"150-500",l:"$150–$500"},{v:"500+",l:"$500+"}]} /></Fld>
+        </Row2>
+        <Fld><Lbl optional>Out-of-stock Behaviour</Lbl>
+          <Sel value={data.oosMode||"hide"} onChange={v=>update("oosMode",v)} options={[
+            {v:"hide",l:"Hide product when out of stock"},{v:"show",l:"Show as 'Out of Stock'"},
+            {v:"preorder",l:"Show with Pre-order option"}]} /></Fld>
+        <Tog value={!!data.acceptsCustomOrders} onChange={v=>update("acceptsCustomOrders",v)}
+          label="I accept custom / personalised orders" />
+      </Card>
+    </>
+  );
+}
+
+// ─── Stage 6: Fulfilment ─────────────────────────────────────────
+function FulfilmentStage({ data, update }) {
+  return (
+    <Card title="Fulfilment Rules" subtitle="How orders are processed and shipped">
+      <Row2>
+        <Fld><Lbl required>Standard Processing Time</Lbl>
+          <Sel value={data.processingDays||"3"} onChange={v=>update("processingDays",v)}
+            options={[1,2,3,5,7,10,14].map(d=>({v:String(d),l:`${d} business day${d>1?"s":""}`}))} />
+          <p style={{ marginTop:3, fontSize:11, color:VT.inkLight, margin:"3px 0 0" }}>Time from order confirmation to dispatch</p>
+        </Fld>
+        <Fld><Lbl optional>Custom Order Processing</Lbl>
+          <Sel value={data.customProcessingDays||"7"} onChange={v=>update("customProcessingDays",v)}
+            options={[3,5,7,10,14,21].map(d=>({v:String(d),l:`${d} business day${d>1?"s":""}`}))} /></Fld>
+      </Row2>
+      <Fld>
+        <Lbl required>Shipping Regions</Lbl>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+          {[["au-only","🇦🇺 Australia only"],["au-nz","🌏 Australia + NZ"],
+            ["au-intl","🌍 Australia + International"],["worldwide","🌐 Worldwide"]].map(([v,l])=>(
+            <div key={v} onClick={()=>update("shippingRegion",v)}
+              style={{ padding:"9px 13px", borderRadius:6, cursor:"pointer", transition:"all 0.15s",
+                background:data.shippingRegion===v?VT.accentBg:VT.surfaceAlt,
+                border:`1.5px solid ${data.shippingRegion===v?VT.accent:VT.border}` }}>
+              <p style={{ margin:0, fontSize:12, fontFamily:sans,
+                fontWeight:data.shippingRegion===v?700:400, color:data.shippingRegion===v?VT.accent:VT.ink }}>{l}</p>
+            </div>
+          ))}
+        </div>
+      </Fld>
+      <div style={{ display:"grid", gap:7 }}>
+        <Tog value={!!data.acceptsReturns} onChange={v=>update("acceptsReturns",v)}
+          label="Accepts returns on standard (non-custom) orders" />
+        {data.acceptsReturns && (
+          <div style={{ paddingLeft:16 }}>
+            <Lbl>Return Window</Lbl>
+            <Sel value={data.returnDays||"14"} onChange={v=>update("returnDays",v)}
+              options={[7,14,21,30].map(d=>({v:String(d),l:`${d} days from delivery`}))} />
+          </div>
+        )}
+        <Tog value={!!data.lowStockAlerts} onChange={v=>update("lowStockAlerts",v)}
+          label="Email me when stock drops below 5 units" />
+      </div>
+    </Card>
+  );
+}
+
+// ─── Stage 7: Review & Submit ────────────────────────────────────
+function ReviewStage({ data, onSubmit }) {
+  const checks = [
+    { label:"Brand name",           ok:!!data.brandName },
+    { label:"Store URL",            ok:!!data.storeUrl && data.storeUrl.includes(".") },
+    { label:"Shopify plan",         ok:!!data.plan },
+    { label:"Contact email",        ok:!!data.contactEmail },
+    { label:"Contact phone",        ok:!!data.contactPhone },
+    { label:"PAN number",           ok:validatePAN(data.pan||"") },
+    { label:"Storefront API token", ok:!!data.storefrontToken },
+    { label:"Admin API token",      ok:!!data.adminToken },
+    { label:"Webhook secret",       ok:!!data.webhookSecret },
+    { label:"Bank details",         ok:!!(data.accountName && data.accountNumber && data.ifsc) },
+    { label:"Product categories",   ok:(data.categories||[]).length>0 },
+    { label:"Shipping region",      ok:!!data.shippingRegion },
+  ];
+  const passed = checks.filter(c=>c.ok).length;
+  const pct = Math.round((passed/checks.length)*100);
+  const canSubmit = pct === 100;
+
+  return (
+    <>
+      <Card title="Registration Summary" subtitle="Review all details before submitting">
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
+          {[["Vendor ID",data.vendorId,true],["Brand",data.brandName||"—",false],
+            ["Store URL",data.storeUrl||"—",true],["Contact",data.contactEmail||"—",false],
+            ["PAN",data.pan||"—",true],["Categories",(data.categories||[]).slice(0,2).join(", ")||"—",false]
+          ].map(([k,v,isMono])=>(
+            <div key={k} style={{ padding:"9px 11px", background:VT.surfaceAlt, borderRadius:5, border:`1px solid ${VT.border}` }}>
+              <p style={{ fontSize:10, color:VT.inkLight, fontFamily:mono, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:2, margin:"0 0 2px" }}>{k}</p>
+              <p style={{ fontSize:12, color:VT.ink, fontFamily:isMono?mono:sans, fontWeight:600, wordBreak:"break-all", margin:0 }}>{v}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginBottom:14 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+            <span style={{ fontSize:12, fontWeight:700 }}>Completion</span>
+            <span style={{ fontSize:14, fontWeight:900, color:canSubmit?VT.green:pct>=70?VT.amber:VT.red }}>{pct}%</span>
+          </div>
+          <div style={{ height:5, background:VT.border, borderRadius:3 }}>
+            <div style={{ height:"100%", width:`${pct}%`, borderRadius:3, transition:"width 0.4s",
+              background:canSubmit?VT.green:pct>=70?VT.amber:VT.red }} />
+          </div>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+          {checks.map(c=>(
+            <div key={c.label} style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 9px", borderRadius:5,
+              background:c.ok?VT.greenBg:VT.redBg, border:`1px solid ${c.ok?VT.green+"33":VT.red+"33"}` }}>
+              <span style={{ fontSize:11, color:c.ok?VT.green:VT.red }}>{c.ok?"✓":"✗"}</span>
+              <span style={{ fontSize:11, color:VT.ink }}>{c.label}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {canSubmit ? (
+        <div style={{ background:VT.greenBg, border:`2px solid ${VT.green}44`, borderRadius:10, padding:"22px", textAlign:"center" }}>
+          <div style={{ fontSize:40, marginBottom:7 }}>🚀</div>
+          <p style={{ fontWeight:900, fontSize:16, color:VT.green, marginBottom:5, margin:"0 0 5px" }}>Ready to submit!</p>
+          <p style={{ fontSize:12, color:VT.inkMid, marginBottom:18, lineHeight:1.6, margin:"0 0 18px" }}>
+            Your registration will be reviewed by The Gift Collective team. We'll activate your store within 2 business days.
+          </p>
+          <Btn onClick={onSubmit} size="lg">Submit Registration →</Btn>
+        </div>
+      ) : (
+        <div style={{ background:VT.amberBg, border:`1px solid ${VT.amber}44`, borderRadius:9, padding:"14px 18px", textAlign:"center" }}>
+          <p style={{ fontWeight:700, color:VT.amber, marginBottom:3, margin:"0 0 3px" }}>
+            {checks.length-passed} required field{checks.length-passed!==1?"s":""} missing
+          </p>
+          <p style={{ fontSize:12, color:VT.inkMid, margin:0 }}>Complete all required fields to enable submission.</p>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Stage definitions ───────────────────────────────────────────
+const STAGES = [
+  { id:1, icon:"🏪", label:"Store Info",       sub:"Brand & contact" },
+  { id:2, icon:"📋", label:"Tax & Compliance",  sub:"PAN, GST" },
+  { id:3, icon:"🔗", label:"Shopify Setup",    sub:"API tokens" },
+  { id:4, icon:"💳", label:"Payouts",          sub:"Bank details" },
+  { id:5, icon:"📦", label:"Catalogue",        sub:"Categories & products" },
+  { id:6, icon:"🚚", label:"Fulfilment",       sub:"Shipping & returns" },
+  { id:7, icon:"✅", label:"Review & Submit",  sub:"Go live" },
+];
+
+// ─── Root wizard ─────────────────────────────────────────────────
+function VendorRegistration() {
+  const saved = loadReg();
+  const [data, setData] = useState(saved || {
+    vendorId:genId(), currency:"AUD", apiVersion:"2025-04",
+    processingDays:"3", oosMode:"hide", createdAt:today(),
+  });
+  const [stage, setStage] = useState(1);
+  const [savedMsg, setSavedMsg] = useState(false);
+  const [submitted, setSubmitted] = useState(!!(saved?.submitted));
+
+  const update = useCallback((key, val) => {
+    setData(d => ({ ...d, [key]:val }));
+    setSavedMsg(false);
+  }, []);
+
+  const save = () => {
+    saveReg(data);
+    setSavedMsg(true);
+    setTimeout(() => setSavedMsg(false), 2000);
+  };
+
+  const submit = () => {
+    const final = { ...data, submitted:true, submittedAt:today() };
+    saveReg(final);
+    setData(final);
+    setSubmitted(true);
+  };
+
+  const reset = () => {
+    if (!window.confirm("Start a new registration? Your saved progress will be cleared.")) return;
+    const fresh = { vendorId:genId(), currency:"AUD", apiVersion:"2025-04",
+      processingDays:"3", oosMode:"hide", createdAt:today() };
+    saveReg(fresh);
+    setData(fresh);
+    setStage(1);
+    setSubmitted(false);
+  };
+
+  const stageComplete = {
+    1: !!(data.brandName && data.storeUrl && data.plan && data.contactEmail),
+    2: validatePAN(data.pan||""),
+    3: !!(data.storefrontToken && data.adminToken && data.webhookSecret),
+    4: !!(data.accountName && data.accountNumber && data.ifsc && data.accountType),
+    5: (data.categories||[]).length > 0,
+    6: !!(data.processingDays && data.shippingRegion),
+    7: true,
+  };
+
+  const stageContent = {
+    1: <StoreInfoStage data={data} update={update} />,
+    2: <TaxStage data={data} update={update} />,
+    3: <ShopifyStage data={data} update={update} />,
+    4: <PayoutsStage data={data} update={update} />,
+    5: <CatalogueStage data={data} update={update} />,
+    6: <FulfilmentStage data={data} update={update} />,
+    7: <ReviewStage data={data} onSubmit={submit} />,
+  };
+
+  if (submitted) {
+    return (
+      <div style={{ minHeight:400, display:"flex", alignItems:"center", justifyContent:"center", padding:32, fontFamily:sans, background:VT.bg }}>
+        <div style={{ textAlign:"center", maxWidth:420 }}>
+          <div style={{ fontSize:52, marginBottom:14 }}>🎉</div>
+          <h2 style={{ fontSize:21, fontWeight:900, color:VT.ink, marginBottom:8 }}>Registration Submitted!</h2>
+          <p style={{ fontSize:13, color:VT.inkMid, lineHeight:1.7, marginBottom:10 }}>
+            The Gift Collective team will review your registration and activate your store within 2 business days. You'll receive a confirmation email.
+          </p>
+          <code style={{ display:"inline-block", fontSize:13, color:VT.accent, background:VT.accentBg,
+            padding:"5px 13px", borderRadius:5, fontFamily:mono, marginBottom:22 }}>{data.vendorId}</code><br/>
+          <Btn onClick={reset} variant="ghost">Start New Registration</Btn>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background:VT.bg, fontFamily:sans }}>
+      {/* Top bar */}
+      <div style={{ background:VT.surface, borderBottom:`1px solid ${VT.border}`, padding:"10px 22px",
+        display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+          <span style={{ fontSize:13, color:VT.ink, fontWeight:700 }}>{data.brandName || "New Vendor Registration"}</span>
+          <code style={{ fontSize:11, color:VT.accent, fontFamily:mono, background:VT.accentBg, padding:"2px 7px", borderRadius:4 }}>{data.vendorId}</code>
+        </div>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          {savedMsg && <span style={{ fontSize:12, color:VT.green }}>✓ Saved</span>}
+          <Btn variant="ghost" size="sm" onClick={save}>Save Progress</Btn>
+          <Btn variant="danger" size="sm" onClick={reset}>Reset</Btn>
+        </div>
+      </div>
+
+      <div style={{ display:"flex" }}>
+        {/* Sidebar */}
+        <div style={{ width:190, background:VT.surface, borderRight:`1px solid ${VT.border}`, padding:"16px 0", flexShrink:0 }}>
+          {STAGES.map(s => {
+            const done   = stageComplete[s.id];
+            const active = stage === s.id;
+            return (
+              <div key={s.id} onClick={()=>setStage(s.id)}
+                style={{ display:"flex", alignItems:"center", gap:9, padding:"9px 14px", cursor:"pointer",
+                  transition:"background 0.12s", background:active?VT.accentBg:"transparent",
+                  borderLeft:`3px solid ${active?VT.accent:"transparent"}` }}>
+                <div style={{ width:24, height:24, borderRadius:"50%", flexShrink:0,
+                  background:done?VT.greenBg:active?VT.accent:VT.surfaceAlt,
+                  border:`2px solid ${done?VT.green:active?VT.accent:VT.border}`,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  fontSize:10, fontWeight:900, color:done?VT.green:active?"#fff":VT.inkLight }}>
+                  {done && !active ? "✓" : s.id}
+                </div>
+                <div>
+                  <p style={{ margin:0, fontSize:12, fontWeight:active?700:500, color:active?VT.accent:VT.ink }}>{s.label}</p>
+                  <p style={{ margin:0, fontSize:10, color:VT.inkLight }}>{s.sub}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Content */}
+        <div style={{ flex:1, padding:"24px 28px", overflowY:"auto", maxHeight:"calc(100vh - 110px)" }}>
+          <div style={{ maxWidth:640, margin:"0 auto" }}>
+            {/* Stage header */}
+            <div style={{ marginBottom:20 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:8 }}>
+                <span style={{ fontSize:22 }}>{STAGES[stage-1].icon}</span>
+                <div style={{ flex:1 }}>
+                  <h2 style={{ fontSize:17, fontWeight:900, color:VT.ink, margin:0 }}>{STAGES[stage-1].label}</h2>
+                  <p style={{ fontSize:11, color:VT.inkMid, margin:0 }}>{STAGES[stage-1].sub}</p>
+                </div>
+                <span style={{ fontSize:11, color:VT.inkMid, fontFamily:mono }}>Step {stage} of {STAGES.length}</span>
+              </div>
+              <div style={{ height:3, background:VT.border, borderRadius:2 }}>
+                <div style={{ height:"100%", borderRadius:2, background:VT.accent, transition:"width 0.3s", width:`${(stage/STAGES.length)*100}%` }} />
+              </div>
+            </div>
+
+            <div key={stage}>{stageContent[stage]}</div>
+
+            {/* Navigation */}
+            <div style={{ display:"flex", justifyContent:"space-between", marginTop:20, paddingTop:14, borderTop:`1px solid ${VT.border}` }}>
+              {stage > 1 ? <Btn variant="ghost" onClick={()=>setStage(s=>s-1)}>← Previous</Btn> : <div />}
+              {stage < STAGES.length && (
+                <div style={{ display:"flex", gap:8 }}>
+                  <Btn variant="ghost" onClick={save}>Save</Btn>
+                  <Btn onClick={()=>{ save(); setStage(s=>s+1); }}>Next: {STAGES[stage].label} →</Btn>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Mount into tab panel
+ReactDOM.createRoot(document.getElementById('vendor-reg-root')).render(<VendorRegistration />);
 </script>
 </body>
 </html>
