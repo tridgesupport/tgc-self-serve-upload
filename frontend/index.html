@@ -1510,7 +1510,7 @@
 // ════════════════════════════════════════════════════════════════
 // VENDOR REGISTRATION — React component
 // ════════════════════════════════════════════════════════════════
-const { useState, useCallback } = React;
+const { useState, useCallback, useRef } = React;
 
 // ─── Design tokens (TGC theme) ──────────────────────────────────
 const VT = {
@@ -1563,8 +1563,8 @@ const Lbl = ({ children, required, optional }) => (
   </div>
 );
 
-const Inp = ({ value, onChange, placeholder, type="text", isMono=false, disabled=false, error=false }) => (
-  <input value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} type={type} disabled={disabled}
+const Inp = ({ value, onChange, onBlur, placeholder, type="text", isMono=false, disabled=false, error=false }) => (
+  <input value={value||""} onChange={e=>onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} type={type} disabled={disabled}
     style={{ width:"100%", padding:"9px 12px", borderRadius:6, border:`1.5px solid ${error?VT.red:VT.border}`,
       background:disabled?VT.surfaceAlt:VT.surface, color:disabled?VT.inkMid:VT.ink, fontSize:13,
       fontFamily:isMono?mono:sans, transition:"border 0.15s", cursor:disabled?"not-allowed":"text", outline:"none" }} />
@@ -1643,28 +1643,129 @@ const Guide = ({ title, steps }) => {
   );
 };
 
+// ─── Platform Detection (local, no API key needed) ───────────────
+function detectPlatformLocally(rawUrl) {
+  if (!rawUrl || rawUrl.length < 4) return null;
+  const url = rawUrl.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+  if (url.includes(".myshopify.com")) {
+    return { detected:true, platform:"shopify", platformLabel:"Shopify", isShopify:true,
+      isMyshopifyDomain:true, supported:true, confidence:"high",
+      headline:"Shopify store confirmed",
+      message:"Great — this is a Shopify store. Select your plan below, then proceed to Stage 3 to connect your API tokens." };
+  }
+  const unsupported = [
+    { re:/wix\.com|wixsite\.com/,           label:"Wix" },
+    { re:/squarespace\.com/,                label:"Squarespace" },
+    { re:/bigcommerce\.com|mybigcommerce\.com/, label:"BigCommerce" },
+    { re:/webflow\.io/,                     label:"Webflow" },
+    { re:/godaddysites\.com/,               label:"GoDaddy" },
+    { re:/wordpress\.com/,                  label:"WordPress" },
+  ];
+  for (const { re, label } of unsupported) {
+    if (re.test(url)) {
+      return { detected:true, platform:label.toLowerCase(), platformLabel:label, isShopify:false,
+        isMyshopifyDomain:false, supported:false, confidence:"high",
+        headline:label + " store detected",
+        message:`This appears to be a ${label} store. TGC currently onboards Shopify stores (Basic plan and above) only. Please contact our team to discuss an alternative onboarding path.` };
+    }
+  }
+  return { detected:false, platform:"unknown", platformLabel:"Unknown", isShopify:false,
+    isMyshopifyDomain:false, supported:false, confidence:"low",
+    headline:"Platform not recognised",
+    message:"We couldn't detect the platform automatically. If this is a Shopify store, try entering your .myshopify.com domain (e.g. yourstore.myshopify.com). Otherwise contact us to discuss onboarding options." };
+}
+
+function PlatformBadge({ result, detecting }) {
+  if (detecting) return (
+    <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8, padding:"8px 12px",
+      background:VT.surfaceAlt, borderRadius:6, border:`1px solid ${VT.border}` }}>
+      <span style={{ fontSize:13 }}>⟳</span>
+      <span style={{ fontSize:12, color:VT.inkMid, fontFamily:sans }}>Detecting platform…</span>
+    </div>
+  );
+  if (!result) return null;
+  const isOk      = result.supported;
+  const isUnknown = !result.detected || result.platform === "unknown";
+  const bg  = isOk ? VT.accentBg : isUnknown ? VT.amberBg : VT.redBg;
+  const bdr = isOk ? VT.accent   : isUnknown ? VT.amber   : VT.red;
+  const clr = isOk ? VT.accent   : isUnknown ? VT.amber   : VT.red;
+  const emoji = { shopify:"🛍️", wix:"🎨", squarespace:"⬛", bigcommerce:"🏪", webflow:"🌊", godaddy:"🌐", wordpress:"📝", unknown:"❓" };
+  return (
+    <div style={{ marginTop:8, borderRadius:8, overflow:"hidden", border:`1.5px solid ${bdr}44` }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 13px", background:bg }}>
+        <span style={{ fontSize:18 }}>{emoji[result.platform] || "❓"}</span>
+        <p style={{ flex:1, margin:0, fontWeight:700, fontSize:13, color:clr, fontFamily:sans }}>{result.headline}</p>
+        <span style={{ fontSize:10, fontWeight:700, fontFamily:mono, flexShrink:0,
+          background: isOk ? VT.accent : isUnknown ? VT.amber : VT.red,
+          color:"#fff", padding:"2px 8px", borderRadius:10, textTransform:"uppercase" }}>
+          {isOk ? "SUPPORTED" : isUnknown ? "UNCONFIRMED" : "NOT SUPPORTED"}
+        </span>
+      </div>
+      <div style={{ padding:"8px 13px", background:VT.surface, borderTop:`1px solid ${bdr}22` }}>
+        <p style={{ margin:0, fontSize:12, color:VT.ink, fontFamily:sans, lineHeight:1.6 }}>{result.message}</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Stage 1: Store Info ─────────────────────────────────────────
 function StoreInfoStage({ data, update }) {
+  const [detecting, setDetecting]         = useState(false);
+  const [platformResult, setPlatformResult] = useState(null);
+  const lastUrl = useRef("");
+
+  const handleUrlBlur = () => {
+    const url = (data.storeUrl || "").trim();
+    if (!url || url === lastUrl.current || url.length < 5) return;
+    lastUrl.current = url;
+    setDetecting(true);
+    setPlatformResult(null);
+    setTimeout(() => {
+      setDetecting(false);
+      setPlatformResult(detectPlatformLocally(url));
+    }, 350);
+  };
+
+  const isShopify  = platformResult?.isShopify === true;
+  const notShopify = !!(platformResult?.detected && !platformResult.isShopify);
+
   return (
     <>
       <Card title="Brand Identity" subtitle="How your store appears on The Gift Collective">
         <Row2>
           <Fld><Lbl required>Brand / Business Name</Lbl>
             <Inp value={data.brandName} onChange={v=>update("brandName",v)} placeholder="e.g. Sarah's Ceramics" /></Fld>
-          <Fld><Lbl required>Shopify Store URL</Lbl>
-            <Inp value={data.storeUrl} onChange={v=>update("storeUrl",v)} placeholder="yourstore.myshopify.com" isMono />
-            <Err msg={data.storeUrl && !data.storeUrl.includes(".") ? "Enter full domain, e.g. store.myshopify.com" : null} /></Fld>
-        </Row2>
-        <Row2>
-          <Fld><Lbl required>Shopify Plan</Lbl>
-            <Sel value={data.plan} onChange={v=>update("plan",v)} options={[
-              {v:"",l:"Select plan…"},{v:"basic",l:"Basic ($39/mo)"},{v:"shopify",l:"Shopify ($105/mo)"},
-              {v:"advanced",l:"Advanced ($399/mo)"},{v:"plus",l:"Plus ($2,500/mo)"}]} /></Fld>
           <Fld><Lbl>Currency</Lbl>
             <Inp value="INR — Indian Rupee" onChange={()=>{}} disabled /></Fld>
         </Row2>
+        {!notShopify && (
+          <Row2>
+            <Fld><Lbl required>Shopify Plan</Lbl>
+              <Sel value={data.plan} onChange={v=>update("plan",v)} options={[
+                {v:"",l:"Select plan…"},{v:"basic",l:"Basic ($39/mo)"},{v:"shopify",l:"Shopify ($105/mo)"},
+                {v:"advanced",l:"Advanced ($399/mo)"},{v:"plus",l:"Plus ($2,500/mo)"}]} /></Fld>
+            <Fld />
+          </Row2>
+        )}
         <Fld><Lbl optional>Store Logo URL</Lbl>
           <Inp value={data.logoUrl} onChange={v=>update("logoUrl",v)} placeholder="https://..." isMono /></Fld>
+        <Fld>
+          <Lbl required>Store URL</Lbl>
+          <Inp value={data.storeUrl}
+            onChange={v=>{ update("storeUrl",v); setPlatformResult(null); lastUrl.current=""; }}
+            onBlur={handleUrlBlur}
+            placeholder="yourstore.myshopify.com" isMono />
+          <Err msg={data.storeUrl && !data.storeUrl.includes(".") ? "Enter full domain, e.g. store.myshopify.com" : null} />
+          <PlatformBadge result={platformResult} detecting={detecting} />
+        </Fld>
+        {notShopify && (
+          <div style={{ background:VT.redBg, border:`1px solid ${VT.red}33`, borderRadius:7, padding:"12px 14px" }}>
+            <p style={{ fontSize:13, fontWeight:700, color:VT.red, margin:"0 0 4px" }}>Alternative Onboarding Required</p>
+            <p style={{ fontSize:12, color:VT.ink, lineHeight:1.6, margin:0 }}>
+              TGC currently supports Shopify stores only. Please <strong>contact our team</strong> and we'll walk you through an alternative onboarding path.
+            </p>
+          </div>
+        )}
       </Card>
       <Card title="Contact Details" subtitle="Primary contact for orders and support">
         <Row2>
@@ -1675,7 +1776,7 @@ function StoreInfoStage({ data, update }) {
         </Row2>
         <Row2>
           <Fld><Lbl required>Contact Phone</Lbl>
-            <Inp value={data.contactPhone} onChange={v=>update("contactPhone",v)} placeholder="+61 400 000 000" type="tel" /></Fld>
+            <Inp value={data.contactPhone} onChange={v=>update("contactPhone",v)} placeholder="+91 98765 43210" type="tel" /></Fld>
           <Fld><Lbl optional>Order Notification Email</Lbl>
             <Inp value={data.notifyEmail} onChange={v=>update("notifyEmail",v)} placeholder="orders@store.com" type="email" /></Fld>
         </Row2>
