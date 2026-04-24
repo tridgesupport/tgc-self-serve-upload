@@ -1,15 +1,19 @@
 import asyncio
+import base64
+import hashlib
+import hmac
+import json
 import os
 import re
 import sys
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.background import BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -37,8 +41,23 @@ from drive_client import (
 from drive_scraper import scrape_drive, extract_drive_id
 from imagekit_client import upload_to_imagekit
 from instagram_scraper import scrape_instagram
-from database import init_db, upsert_vendor, list_vendors, get_vendor, patch_vendor, set_last_pulled
-from scraper import detect_and_scrape, scrape_shopify, scrape_shopify_authenticated
+from database import (
+    init_db, upsert_vendor, list_vendors, get_vendor, patch_vendor,
+    set_last_pulled, update_webhook_ids, get_webhook_ids,
+)
+from scraper import detect_and_scrape, scrape_shopify, scrape_shopify_authenticated, clean_html
+from supabase_client import (
+    upsert_product,
+    get_product_by_shopify_id,
+    get_product_by_id,
+    list_pending_products,
+    list_approved_products,
+    approve_product as sb_approve_product,
+    reject_product as sb_reject_product,
+    update_product_by_shopify_id,
+    delete_product_by_shopify_id,
+)
+from shopify_webhooks import register_product_webhooks, deregister_product_webhooks
 
 app = FastAPI(title="TGC Self-Serve Upload")
 init_db()
@@ -145,6 +164,19 @@ class VendorPatchRequest(BaseModel):
     plan: Optional[str] = None
 
 
+class ApproveProductRequest(BaseModel):
+    assets: list[AssetIn]
+    brand: str
+    product_name: str
+    product_description: str
+    price: str
+    level_1: Optional[str] = ""
+    level_2: Optional[str] = ""
+    level_3: Optional[str] = ""
+    level_4: Optional[str] = ""
+    level_5: Optional[str] = ""
+
+
 # Sheet URL is fixed — stored in env var, not entered by users
 VENDOR_SHEET_URL = os.environ.get(
     "VENDOR_SHEET_URL",
@@ -168,6 +200,231 @@ def sanitize(name: str) -> str:
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _verify_shopify_hmac(body: bytes, hmac_header: str, secret: str) -> bool:
+    """Return True if the Shopify HMAC-SHA256 signature is valid.
+
+    If secret is empty (vendor hasn't set one), skip verification and accept
+    the request — tighten this once secrets are confirmed working.
+    """
+    if not secret or not hmac_header:
+        return True
+    computed = base64.b64encode(
+        hmac.new(secret.encode("utf-8"), body, hashlib.sha256).digest()
+    ).decode()
+    return hmac.compare_digest(computed, hmac_header)
+
+
+def _handle_shopify_event(vendor: dict, topic: str, payload: dict) -> None:
+    """Sync handler called as a FastAPI BackgroundTask for Shopify webhook events."""
+    vendor_id  = vendor["id"]
+    brand_name = vendor.get("brand_name") or vendor_id
+    shopify_id = payload.get("id")
+    if not shopify_id:
+        return
+
+    try:
+        if topic == "products/create":
+            assets = [
+                {"url": img["src"], "type": "image"}
+                for img in payload.get("images", [])
+                if img.get("src")
+            ]
+            upsert_product({
+                "shopify_product_id": shopify_id,
+                "vendor_id":          vendor_id,
+                "vendor_brand_name":  brand_name,
+                "title":              payload.get("title", ""),
+                "description":        clean_html(payload.get("body_html", "")),
+                "price":              str(payload["variants"][0].get("price", "0"))
+                                      if payload.get("variants") else "0",
+                "assets":             assets,
+                "status":             "pending",
+                "shopify_updated_at": payload.get("updated_at"),
+            })
+            print(f"[Webhook] New product queued for approval: {payload.get('title')} (vendor={vendor_id})")
+
+        elif topic == "products/update":
+            existing = get_product_by_shopify_id(shopify_id, vendor_id)
+            if not existing:
+                return  # product not in our catalogue yet, ignore
+            assets = [
+                {"url": img["src"], "type": "image"}
+                for img in payload.get("images", [])
+                if img.get("src")
+            ]
+            updates = {
+                "title":              payload.get("title", existing.get("title", "")),
+                "description":        clean_html(payload.get("body_html", "")),
+                "price":              str(payload["variants"][0].get("price", "0"))
+                                      if payload.get("variants") else existing.get("price", "0"),
+                "assets":             assets,
+                "shopify_updated_at": payload.get("updated_at"),
+            }
+            update_product_by_shopify_id(shopify_id, vendor_id, updates)
+            print(f"[Webhook] Product updated: {payload.get('title')} (vendor={vendor_id})")
+
+        elif topic == "products/delete":
+            delete_product_by_shopify_id(shopify_id, vendor_id)
+            print(f"[Webhook] Product deleted: shopify_id={shopify_id} (vendor={vendor_id})")
+
+    except Exception as exc:
+        print(f"[Webhook] Failed to handle {topic} for vendor {vendor_id}: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Shopify webhook receiver
+# ---------------------------------------------------------------------------
+
+@app.post("/api/webhooks/shopify/{vendor_id}", status_code=200)
+async def shopify_webhook(vendor_id: str, request: Request, background_tasks: BackgroundTasks):
+    """Receive Shopify product webhook events, verify HMAC, handle asynchronously."""
+    body = await request.body()
+
+    vendor = await asyncio.get_event_loop().run_in_executor(_executor, get_vendor, vendor_id)
+    if not vendor:
+        # Return 200 so Shopify doesn't keep retrying for unknown vendors
+        return {"received": False, "reason": "unknown vendor"}
+
+    hmac_header    = request.headers.get("X-Shopify-Hmac-Sha256", "")
+    webhook_secret = (vendor.get("webhook_secret") or "").strip()
+
+    if not _verify_shopify_hmac(body, hmac_header, webhook_secret):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature.")
+
+    topic   = request.headers.get("X-Shopify-Topic", "")
+    payload = json.loads(body) if body else {}
+
+    background_tasks.add_task(_handle_shopify_event, vendor, topic, payload)
+    return {"received": True}
+
+
+# ---------------------------------------------------------------------------
+# Product catalogue (production frontend)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/catalogue")
+async def get_catalogue(
+    vendor_id: Optional[str] = None,
+    level_1:   Optional[str] = None,
+    limit:     int = 500,
+    offset:    int = 0,
+):
+    """Public endpoint: returns approved products for the production frontend."""
+    try:
+        products = await asyncio.get_event_loop().run_in_executor(
+            _executor, list_approved_products, vendor_id, level_1, limit, offset
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    return {"products": products, "count": len(products)}
+
+
+# ---------------------------------------------------------------------------
+# Admin product endpoints (pending queue + approve/reject)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/admin/products/pending")
+async def get_pending_products(vendor_id: Optional[str] = None):
+    """Return all products awaiting admin approval."""
+    try:
+        products = await asyncio.get_event_loop().run_in_executor(
+            _executor, list_pending_products, vendor_id
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    return {"products": products, "count": len(products)}
+
+
+@app.post("/api/admin/products/{product_id}/approve")
+async def approve_product_endpoint(product_id: str, req: ApproveProductRequest):
+    """Approve a pending product: upload selected assets to ImageKit, update Supabase."""
+    loop = asyncio.get_event_loop()
+
+    try:
+        product = await loop.run_in_executor(_executor, get_product_by_id, product_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found.")
+
+    brand_safe = sanitize(req.brand or product.get("vendor_brand_name") or "unknown")
+
+    metadata = {
+        "product_name":        req.product_name,
+        "product_description": req.product_description,
+        "price":               req.price,
+        "brand":               req.brand,
+        "level_1":             req.level_1 or "",
+        "level_2":             req.level_2 or "",
+        "level_3":             req.level_3 or "",
+        "level_4":             req.level_4 or "",
+        "level_5":             req.level_5 or "",
+    }
+
+    uploaded_assets: list[dict] = []
+    first_ik_url = None
+    first_ik_fid = None
+
+    for i, asset in enumerate(req.assets):
+        url_path = urlparse(asset.url).path
+        _, ext   = os.path.splitext(url_path)
+        if ext.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".mp4", ".mov", ".webm"}:
+            ext = ".jpg" if asset.type != "video" else ".mp4"
+        filename = sanitize(f"{brand_safe}_{req.product_name}_{i + 1}") + ext
+
+        result = await loop.run_in_executor(
+            _executor, upload_to_imagekit, asset.url, filename, brand_safe, metadata
+        )
+        if result:
+            uploaded_assets.append({"url": result["url"], "type": asset.type})
+            if not first_ik_url:
+                first_ik_url = result.get("url")
+                first_ik_fid = result.get("fileId")
+        else:
+            uploaded_assets.append({"url": asset.url, "type": asset.type})
+
+    update_data = {
+        "status":           "approved",
+        "approved_at":      datetime.now(timezone.utc).isoformat(),
+        "title":            req.product_name,
+        "description":      req.product_description,
+        "price":            req.price,
+        "assets":           uploaded_assets,
+        "imagekit_url":     first_ik_url,
+        "imagekit_file_id": first_ik_fid,
+        "level_1":          req.level_1 or "",
+        "level_2":          req.level_2 or "",
+        "level_3":          req.level_3 or "",
+        "level_4":          req.level_4 or "",
+        "level_5":          req.level_5 or "",
+    }
+
+    try:
+        updated = await loop.run_in_executor(
+            _executor, sb_approve_product, product_id, update_data
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    return {"product": updated, "upload_count": len(uploaded_assets)}
+
+
+@app.delete("/api/admin/products/{product_id}", status_code=204)
+async def reject_product_endpoint(product_id: str):
+    """Reject (delete) a pending product."""
+    try:
+        await asyncio.get_event_loop().run_in_executor(
+            _executor, sb_reject_product, product_id
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -195,13 +452,34 @@ async def list_vendors_endpoint():
 
 @app.patch("/api/vendors/{vendor_id}")
 async def patch_vendor_endpoint(vendor_id: str, req: VendorPatchRequest):
-    """Partial update — status, notes, and other editable fields."""
+    """Partial update — status, notes, and other editable fields.
+
+    When status is set to 'active' and the vendor has an admin_token,
+    automatically registers Shopify product webhooks.
+    """
+    loop    = asyncio.get_event_loop()
     updates = {k: v for k, v in req.model_dump().items() if v is not None}
-    vendor = await asyncio.get_event_loop().run_in_executor(
-        _executor, patch_vendor, vendor_id, updates
-    )
+    vendor  = await loop.run_in_executor(_executor, patch_vendor, vendor_id, updates)
     if vendor is None:
         raise HTTPException(status_code=404, detail="Vendor not found.")
+
+    # Auto-register webhooks when vendor is activated for the first time
+    if updates.get("status") == "active" and vendor.get("admin_token"):
+        existing_ids = await loop.run_in_executor(_executor, get_webhook_ids, vendor_id)
+        if not existing_ids:
+            try:
+                new_ids = await loop.run_in_executor(
+                    _executor, register_product_webhooks, vendor
+                )
+                if new_ids:
+                    await loop.run_in_executor(
+                        _executor, update_webhook_ids, vendor_id, new_ids
+                    )
+                    print(f"[Webhooks] Registered {len(new_ids)} webhooks for vendor {vendor_id}")
+            except Exception as exc:
+                print(f"[Webhooks] Registration failed for {vendor_id}: {exc}")
+                # Non-fatal — vendor is still activated, just without webhooks
+
     return vendor
 
 

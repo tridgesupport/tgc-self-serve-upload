@@ -570,6 +570,89 @@
       white-space: nowrap;
     }
 
+    /* ── Pending product cards ── */
+    .pending-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+    }
+    .pending-card-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .pending-assets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .pending-thumb {
+      position: relative;
+      width: 68px;
+      height: 68px;
+      border-radius: 5px;
+      overflow: hidden;
+      border: 2.5px solid transparent;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: border-color .15s;
+    }
+    .pending-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .pending-thumb.sel { border-color: var(--accent); }
+    .pending-thumb .chk {
+      position: absolute;
+      top: 3px; right: 3px;
+      width: 17px; height: 17px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      color: #fff;
+      font-weight: 900;
+    }
+    .pending-thumb.sel .chk { display: flex; }
+    .pending-levels {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      margin: 10px 0;
+    }
+    .pending-level-input {
+      padding: 6px 9px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: .8rem;
+      background: var(--bg);
+      color: var(--text);
+      outline: none;
+      width: 100%;
+    }
+    .pending-level-input:focus { border-color: var(--accent); background: var(--surface); }
+    .pending-actions { display: flex; gap: 8px; margin-top: 10px; }
+    #admin-pending-badge {
+      background: #c0392b;
+      color: #fff;
+      border-radius: 10px;
+      padding: 1px 7px;
+      font-size: .68rem;
+      font-weight: 800;
+      margin-left: 5px;
+      vertical-align: middle;
+      display: none;
+    }
+
     /* ── Admin Panel ── */
     .admin-table {
       width: 100%;
@@ -717,7 +800,7 @@
     <button class="tab-btn"        data-tab="vendor"    onclick="switchTab('vendor')">Vendor Uploads</button>
     <button class="tab-btn"        data-tab="igpost"    onclick="switchTab('igpost')">View as IG Post</button>
     <button class="tab-btn"        data-tab="vendor-reg" onclick="switchTab('vendor-reg')">Vendor Registration</button>
-    <button class="tab-btn"        data-tab="admin"      onclick="switchTab('admin')">Admin</button>
+    <button class="tab-btn"        data-tab="admin"      onclick="switchTab('admin')">Admin<span id="admin-pending-badge"></span></button>
   </div>
 </div>
 
@@ -915,6 +998,19 @@
   <div id="admin-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
     <div class="spinner" id="admin-statusSpinner" style="display:none"></div>
     <span id="admin-statusText"></span>
+  </div>
+
+  <!-- Pending products section (new products from Shopify webhooks) -->
+  <div id="admin-pending-section" style="display:none">
+    <div style="padding:18px 32px 6px;display:flex;align-items:center;gap:10px">
+      <h3 style="font-size:.9rem;font-weight:700;color:var(--text);margin:0">Awaiting Approval</h3>
+      <span id="admin-pending-count" style="font-size:.8rem;color:var(--muted)"></span>
+      <span style="font-size:.78rem;color:var(--muted);margin-left:4px">— New products added at the Shopify store. Select images, fill taxonomy, then approve.</span>
+    </div>
+    <div id="admin-pending-container"
+      style="padding:12px 32px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px">
+    </div>
+    <div style="height:1px;background:var(--border);margin:0 32px 4px"></div>
   </div>
 
   <!-- Vendor table section -->
@@ -1695,26 +1791,183 @@
   // Admin panel functions
   // ══════════════════════════════════════════════════════════════
 
-  // Load or refresh vendor list
+  // Load or refresh vendor list + pending products
   async function loadVendors() {
     const btn = document.getElementById('adminRefreshBtn');
     if (btn) setLoading(btn, true, 'Refreshing…');
     try {
-      const res  = await fetch(`${API_BASE}/api/vendors`);
-      const data = await res.json();
-      if (!res.ok) {
-        showAdminStatus(data.detail || 'Could not load vendors.', 'error');
+      const [vendorRes, pendingRes] = await Promise.all([
+        fetch(`${API_BASE}/api/vendors`),
+        fetch(`${API_BASE}/api/admin/products/pending`).catch(() => null),
+      ]);
+
+      const vendorData = await vendorRes.json();
+      if (!vendorRes.ok) {
+        showAdminStatus(vendorData.detail || 'Could not load vendors.', 'error');
         return;
       }
-      adminVendors = data.vendors || [];
+      adminVendors = vendorData.vendors || [];
       renderVendorTable(adminVendors);
       const countEl = document.getElementById('admin-vendor-count');
       if (countEl) countEl.textContent = `${adminVendors.length} vendor${adminVendors.length !== 1 ? 's' : ''}`;
+
+      if (pendingRes && pendingRes.ok) {
+        const pendingData = await pendingRes.json();
+        pendingProducts = pendingData.products || [];
+        renderPendingProducts();
+        updatePendingBadge(pendingProducts.length);
+      }
     } catch (err) {
       showAdminStatus(`Network error: ${err.message}`, 'error');
     } finally {
       if (btn) setLoading(btn, false, 'Refresh');
     }
+  }
+
+  // ── Pending products ─────────────────────────────────────────────
+
+  let pendingProducts  = [];
+  let pendingSelection = {}; // productId → Set<assetIndex>
+
+  function updatePendingBadge(count) {
+    const badge = document.getElementById('admin-pending-badge');
+    if (!badge) return;
+    if (count > 0) { badge.textContent = count; badge.style.display = 'inline'; }
+    else           { badge.style.display = 'none'; }
+  }
+
+  function togglePendingAsset(productId, assetIndex) {
+    if (!pendingSelection[productId]) pendingSelection[productId] = new Set();
+    const sel = pendingSelection[productId];
+    sel.has(assetIndex) ? sel.delete(assetIndex) : sel.add(assetIndex);
+    const thumb = document.getElementById(`pt-${productId}-${assetIndex}`);
+    if (thumb) thumb.classList.toggle('sel', sel.has(assetIndex));
+  }
+
+  function renderPendingProducts() {
+    const section   = document.getElementById('admin-pending-section');
+    const container = document.getElementById('admin-pending-container');
+    const countEl   = document.getElementById('admin-pending-count');
+    if (!section || !container) return;
+
+    if (!pendingProducts.length) { section.style.display = 'none'; return; }
+
+    section.style.display = 'block';
+    if (countEl) countEl.textContent = `${pendingProducts.length} product${pendingProducts.length !== 1 ? 's' : ''}`;
+    container.innerHTML = '';
+
+    pendingProducts.forEach(p => {
+      if (!pendingSelection[p.id]) pendingSelection[p.id] = new Set();
+      const assets = p.assets || [];
+
+      const thumbsHtml = assets.map((a, i) => `
+        <div class="pending-thumb" id="pt-${escAttr(p.id)}-${i}"
+          onclick="togglePendingAsset('${escAttr(p.id)}', ${i})" title="Click to select">
+          <img src="${escAttr(a.url)}" alt="" loading="lazy"
+            onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2268%22 height=%2268%22%3E%3Crect fill=%22%23eee%22 width=%2268%22 height=%2268%22/%3E%3C/svg%3E'" />
+          <div class="chk">✓</div>
+        </div>`).join('');
+
+      const card = document.createElement('div');
+      card.className = 'pending-card';
+      card.id = `pending-card-${p.id}`;
+      card.innerHTML = `
+        <div class="pending-card-meta">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:.88rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(p.title || '—')}</div>
+            ${p.price ? `<div style="font-size:.78rem;color:var(--muted);margin-top:1px">₹${escHtml(p.price)}</div>` : ''}
+          </div>
+          <span class="vendor-id-badge" style="flex-shrink:0">${escHtml(p.vendor_brand_name || p.vendor_id)}</span>
+        </div>
+        ${assets.length
+          ? `<div class="pending-assets">${thumbsHtml}</div>`
+          : '<p style="font-size:.79rem;color:var(--muted);margin-bottom:8px">No images</p>'}
+        ${p.description ? `<p style="font-size:.76rem;color:var(--muted);line-height:1.45;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escHtml(p.description.substring(0, 180))}</p>` : ''}
+        <div class="pending-levels">
+          <input class="pending-level-input" type="text" placeholder="Level 1 *" id="pl1-${escAttr(p.id)}" />
+          <input class="pending-level-input" type="text" placeholder="Level 2 *" id="pl2-${escAttr(p.id)}" />
+          <input class="pending-level-input" type="text" placeholder="Level 3"   id="pl3-${escAttr(p.id)}" />
+          <input class="pending-level-input" type="text" placeholder="Level 4"   id="pl4-${escAttr(p.id)}" />
+          <input class="pending-level-input" type="text" placeholder="Level 5"   id="pl5-${escAttr(p.id)}" />
+          <input class="pending-level-input" type="text" placeholder="Price override" id="ppr-${escAttr(p.id)}" value="${escAttr(p.price || '')}" />
+        </div>
+        <div class="pending-actions">
+          <button class="pull-btn" id="approve-btn-${escAttr(p.id)}"
+            onclick="approvePendingProduct('${escAttr(p.id)}')">
+            Approve &amp; Push to ImageKit
+          </button>
+          <button class="view-results-btn"
+            onclick="rejectPendingProduct('${escAttr(p.id)}')">
+            Reject
+          </button>
+        </div>`;
+      container.appendChild(card);
+    });
+  }
+
+  async function approvePendingProduct(productId) {
+    const product = pendingProducts.find(p => p.id === productId);
+    if (!product) return;
+
+    const sel    = pendingSelection[productId] || new Set();
+    const assets = (product.assets || []).filter((_, i) => sel.has(i));
+    if (!assets.length) { alert('Select at least one image before approving.'); return; }
+
+    const l1 = document.getElementById(`pl1-${productId}`)?.value.trim() || '';
+    const l2 = document.getElementById(`pl2-${productId}`)?.value.trim() || '';
+    if (!l1 || !l2) { alert('Level 1 and Level 2 are required.'); return; }
+
+    const btn = document.getElementById(`approve-btn-${productId}`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Uploading…'; }
+
+    const body = {
+      assets,
+      brand:               product.vendor_brand_name || product.vendor_id,
+      product_name:        product.title || '',
+      product_description: product.description || '',
+      price:               document.getElementById(`ppr-${productId}`)?.value.trim() || product.price || '',
+      level_1: l1,
+      level_2: l2,
+      level_3: document.getElementById(`pl3-${productId}`)?.value.trim() || '',
+      level_4: document.getElementById(`pl4-${productId}`)?.value.trim() || '',
+      level_5: document.getElementById(`pl5-${productId}`)?.value.trim() || '',
+    };
+
+    try {
+      const res  = await fetch(`${API_BASE}/api/admin/products/${encodeURIComponent(productId)}/approve`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || 'Approval failed.');
+        if (btn) { btn.disabled = false; btn.textContent = 'Approve & Push to ImageKit'; }
+        return;
+      }
+      // Remove from queue
+      pendingProducts = pendingProducts.filter(p => p.id !== productId);
+      delete pendingSelection[productId];
+      document.getElementById(`pending-card-${productId}`)?.remove();
+      if (!pendingProducts.length) document.getElementById('admin-pending-section').style.display = 'none';
+      updatePendingBadge(pendingProducts.length);
+      const countEl = document.getElementById('admin-pending-count');
+      if (countEl) countEl.textContent = `${pendingProducts.length} product${pendingProducts.length !== 1 ? 's' : ''}`;
+      showAdminStatus(`Approved — ${data.upload_count} asset${data.upload_count !== 1 ? 's' : ''} pushed to ImageKit.`, 'success');
+    } catch (err) {
+      alert(`Network error: ${err.message}`);
+      if (btn) { btn.disabled = false; btn.textContent = 'Approve & Push to ImageKit'; }
+    }
+  }
+
+  async function rejectPendingProduct(productId) {
+    if (!confirm('Reject this product? It will be permanently removed from the queue.')) return;
+    try {
+      await fetch(`${API_BASE}/api/admin/products/${encodeURIComponent(productId)}`, { method: 'DELETE' });
+    } catch (err) { console.warn('[Admin] Reject failed:', err); }
+    pendingProducts = pendingProducts.filter(p => p.id !== productId);
+    delete pendingSelection[productId];
+    document.getElementById(`pending-card-${productId}`)?.remove();
+    if (!pendingProducts.length) document.getElementById('admin-pending-section').style.display = 'none';
+    updatePendingBadge(pendingProducts.length);
   }
 
   function showAdminStatus(msg, type = 'info', loading = false) {
@@ -2054,9 +2307,9 @@ function verifyTokenLocally({ tokenType, token, storeUrl }) {
     return { status:"fail", headline:"Incorrect token format",
       explanation:"Shopify tokens start with 'shpat_' followed by 32 characters. Check you copied it fully.",
       errorCode:"TOKEN_FORMAT" };
-  if (tokenType==="webhook_secret" && !token.startsWith("whsec_") && token.length<20)
+  if (tokenType==="webhook_secret" && token.length<20)
     return { status:"fail", headline:"Secret too short",
-      explanation:"Webhook secrets should start with 'whsec_' or be at least 20 characters.", errorCode:"TOKEN_FORMAT" };
+      explanation:"The API secret key should be at least 20 characters. Copy it from Shopify Partners → API credentials.", errorCode:"TOKEN_FORMAT" };
   return { status:"ok", headline:"Format looks correct",
     explanation:"Token format matches Shopify's structure. It will be fully validated when we connect your store.",
     storeName:(storeUrl||"").replace(".myshopify.com",""), productCount:0, planName:"" };
@@ -2403,11 +2656,11 @@ function ShopifyStage({ data, update }) {
           `Tick: Read orders, Write orders, Read products, Write inventory → Save`,
           `Go to the <strong>"API credentials"</strong> tab → <strong>"Reveal token once"</strong>`,
         ])}
-        {renderTokenField("webhookSecret","webhook_secret","Webhook Signing Secret","whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",[
-          `In Shopify admin go to <strong>Settings → Notifications</strong>`,
-          `Scroll to the bottom and click <strong>"Create webhook"</strong>`,
-          `Set event: <em>Order creation</em> · Format: <em>JSON</em>`,
-          `After saving, copy the <strong>Signing secret</strong> shown — paste it here`,
+        {renderTokenField("webhookSecret","webhook_secret","API Secret Key (for webhook verification)","shpss_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",[
+          `In your Shopify Partners dashboard open your app → <strong>API credentials</strong>`,
+          `Copy the <strong>API secret key</strong> (not the access token) — it looks like <code>shpss_…</code>`,
+          `For custom apps: Shopify Admin → Settings → Apps → <strong>Develop apps</strong> → your app → API credentials`,
+          `This secret is used by TGC to verify incoming webhook payloads are genuinely from Shopify`,
         ])}
         <Fld>
           <Lbl>API Version</Lbl>

@@ -83,9 +83,15 @@ def init_db():
                 status                TEXT DEFAULT 'pending',
                 activated_at          TEXT,
                 last_pulled_at        TEXT,
-                notes                 TEXT
+                notes                 TEXT,
+                webhook_ids           TEXT DEFAULT '{}'
             );
         """)
+        # Add webhook_ids to existing databases that pre-date this column
+        try:
+            conn.execute("ALTER TABLE vendors ADD COLUMN webhook_ids TEXT DEFAULT '{}'")
+        except Exception:
+            pass  # Column already exists
 
 
 def _row_to_dict(row) -> Optional[dict]:
@@ -198,3 +204,24 @@ def set_last_pulled(vendor_id: str):
             "UPDATE vendors SET last_pulled_at=? WHERE id=?",
             (datetime.now().isoformat(), vendor_id),
         )
+
+
+def update_webhook_ids(vendor_id: str, webhook_ids: dict) -> None:
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE vendors SET webhook_ids=? WHERE id=?",
+            (json.dumps(webhook_ids), vendor_id),
+        )
+
+
+def get_webhook_ids(vendor_id: str) -> dict:
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT webhook_ids FROM vendors WHERE id=?", (vendor_id,)
+        ).fetchone()
+    if not row:
+        return {}
+    try:
+        return json.loads(row["webhook_ids"] or "{}")
+    except Exception:
+        return {}
