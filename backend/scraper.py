@@ -184,6 +184,87 @@ def scrape_wordpress(root_url: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Shopify — authenticated (Admin REST API, cursor-based pagination)
+# ---------------------------------------------------------------------------
+
+def scrape_shopify_authenticated(root_url: str, admin_token: str, api_version: str = "2025-04") -> list[dict]:
+    """Use the Shopify Admin API with an access token.
+
+    Accesses all products (including unpublished) and handles cursor-based
+    pagination via the Link response header introduced in API version 2019-10.
+    """
+    base         = root_url.rstrip("/")
+    auth_headers = {**HEADERS, "X-Shopify-Access-Token": admin_token}
+    all_products = []
+    url: str | None = f"{base}/admin/api/{api_version}/products.json?limit=250"
+
+    while url:
+        try:
+            res = requests.get(url, headers=auth_headers, timeout=20)
+        except Exception:
+            break
+
+        if res.status_code != 200:
+            break
+
+        try:
+            products = res.json().get("products", [])
+        except Exception:
+            break
+
+        if not products:
+            break
+
+        for p in products:
+            assets = []
+
+            for img in p.get("images", []):
+                src = img.get("src", "")
+                if src:
+                    assets.append({"url": src, "type": asset_type_from_url(src)})
+
+            for media in p.get("media", []):
+                if media.get("media_type") in ("video", "external_video"):
+                    for source in media.get("sources", []):
+                        vid_url = source.get("url", "")
+                        if vid_url:
+                            assets.append({"url": vid_url, "type": "video"})
+                            break
+
+            seen   = set()
+            deduped = []
+            for a in assets:
+                if a["url"] not in seen:
+                    seen.add(a["url"])
+                    deduped.append(a)
+
+            price = "0"
+            if p.get("variants"):
+                price = str(p["variants"][0].get("price", "0"))
+
+            all_products.append({
+                "product_name":        p.get("title", ""),
+                "price":               price,
+                "product_description": clean_html(p.get("body_html", "")),
+                "assets":              deduped,
+            })
+
+        # Advance via Link header  <url>; rel="next"
+        link_header = res.headers.get("Link", "")
+        next_url    = None
+        for part in link_header.split(","):
+            part = part.strip()
+            if 'rel="next"' in part:
+                m = re.search(r"<([^>]+)>", part)
+                if m:
+                    next_url = m.group(1)
+                    break
+        url = next_url
+
+    return all_products
+
+
+# ---------------------------------------------------------------------------
 # Auto-detect and scrape
 # ---------------------------------------------------------------------------
 

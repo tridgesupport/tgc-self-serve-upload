@@ -37,9 +37,11 @@ from drive_client import (
 from drive_scraper import scrape_drive, extract_drive_id
 from imagekit_client import upload_to_imagekit
 from instagram_scraper import scrape_instagram
-from scraper import detect_and_scrape
+from database import init_db, upsert_vendor, list_vendors, get_vendor, patch_vendor, set_last_pulled
+from scraper import detect_and_scrape, scrape_shopify, scrape_shopify_authenticated
 
 app = FastAPI(title="TGC Self-Serve Upload")
+init_db()
 
 app.add_middleware(
     CORSMiddleware,
@@ -91,6 +93,58 @@ class InstagramPushRequest(BaseModel):
     brand: str
 
 
+class VendorRegisterRequest(BaseModel):
+    """Mirrors the localStorage shape from the vendor registration form."""
+    vendorId: str
+    brandName: Optional[str] = None
+    storeUrl: Optional[str] = None
+    plan: Optional[str] = None
+    logoUrl: Optional[str] = None
+    currency: Optional[str] = "INR"
+    contactName: Optional[str] = None
+    contactEmail: Optional[str] = None
+    contactPhone: Optional[str] = None
+    notifyEmail: Optional[str] = None
+    pan: Optional[str] = None
+    gst: Optional[str] = None
+    businessType: Optional[str] = None
+    storefrontToken: Optional[str] = None
+    adminToken: Optional[str] = None
+    webhookSecret: Optional[str] = None
+    apiVersion: Optional[str] = "2025-04"
+    stripeConnected: Optional[bool] = False
+    stripeAccountId: Optional[str] = None
+    accountName: Optional[str] = None
+    bankName: Optional[str] = None
+    accountNumber: Optional[str] = None
+    ifsc: Optional[str] = None
+    accountType: Optional[str] = None
+    categories: Optional[list] = []
+    skuCount: Optional[str] = None
+    priceRange: Optional[str] = None
+    oosMode: Optional[str] = "hide"
+    acceptsCustomOrders: Optional[bool] = False
+    processingDays: Optional[str] = None
+    warehouseCities: Optional[list] = []
+    shippingRegion: Optional[str] = None
+    acceptsReturns: Optional[bool] = False
+    returnDays: Optional[str] = None
+    lowStockAlerts: Optional[bool] = False
+    createdAt: Optional[str] = None
+    submittedAt: Optional[str] = None
+    submitted: Optional[bool] = False
+
+
+class VendorPatchRequest(BaseModel):
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    brand_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    plan: Optional[str] = None
+
+
 # Sheet URL is fixed — stored in env var, not entered by users
 VENDOR_SHEET_URL = os.environ.get(
     "VENDOR_SHEET_URL",
@@ -114,6 +168,182 @@ def sanitize(name: str) -> str:
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Vendor registration & admin endpoints
+# ---------------------------------------------------------------------------
+
+@app.post("/api/vendors", status_code=201)
+async def register_vendor(req: VendorRegisterRequest):
+    """Persist a submitted vendor registration to the database."""
+    try:
+        vendor = await asyncio.get_event_loop().run_in_executor(
+            _executor, upsert_vendor, req.model_dump()
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return vendor
+
+
+@app.get("/api/vendors")
+async def list_vendors_endpoint():
+    """Return all registered vendors for the admin panel."""
+    vendors = await asyncio.get_event_loop().run_in_executor(_executor, list_vendors)
+    return {"vendors": vendors, "count": len(vendors)}
+
+
+@app.patch("/api/vendors/{vendor_id}")
+async def patch_vendor_endpoint(vendor_id: str, req: VendorPatchRequest):
+    """Partial update — status, notes, and other editable fields."""
+    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    vendor = await asyncio.get_event_loop().run_in_executor(
+        _executor, patch_vendor, vendor_id, updates
+    )
+    if vendor is None:
+        raise HTTPException(status_code=404, detail="Vendor not found.")
+    return vendor
+
+
+# ---------------------------------------------------------------------------
+# Vendor product pull — same async job flow as /api/scrape
+# ---------------------------------------------------------------------------
+
+async def _run_vendor_pull_job(job_id: str, vendor_id: str):
+    """Background task: pull vendor's Shopify catalogue and upload to Drive."""
+    try:
+        await _do_vendor_pull_job(job_id, vendor_id)
+    except BaseException as exc:
+        print(f"[VendorPull] Unhandled crash for job {job_id}: {exc}")
+        _jobs[job_id] = {"status": "error", "detail": "An unexpected error occurred while pulling products."}
+
+
+async def _do_vendor_pull_job(job_id: str, vendor_id: str):
+    loop    = asyncio.get_event_loop()
+    vendor  = await loop.run_in_executor(_executor, get_vendor, vendor_id)
+
+    if not vendor:
+        _jobs[job_id] = {"status": "error", "detail": "Vendor not found."}
+        return
+
+    store_url    = (vendor.get("store_url") or "").strip()
+    admin_token  = (vendor.get("admin_token") or "").strip()
+    api_version  = vendor.get("api_version") or "2025-04"
+    brand        = vendor.get("brand_name") or vendor_id
+
+    if not store_url:
+        _jobs[job_id] = {"status": "error", "detail": "Vendor has no store URL configured."}
+        return
+
+    if not store_url.startswith("http"):
+        store_url = f"https://{store_url}"
+
+    deadline = loop.time() + SCRAPE_TIMEOUT_SECS
+    products, platform = [], "shopify"
+
+    for attempt in range(SCRAPE_MAX_RETRIES):
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            break
+        try:
+            if admin_token:
+                products = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        _executor, scrape_shopify_authenticated, store_url, admin_token, api_version
+                    ),
+                    timeout=remaining,
+                )
+                platform = "shopify_admin"
+            else:
+                products = await asyncio.wait_for(
+                    loop.run_in_executor(_executor, scrape_shopify, store_url),
+                    timeout=remaining,
+                )
+                platform = "shopify"
+            if products:
+                break
+        except asyncio.TimeoutError:
+            _jobs[job_id] = {
+                "status": "error",
+                "detail": "Product pull timed out after 5 minutes.",
+            }
+            return
+        except Exception as exc:
+            print(f"[VendorPull] Attempt {attempt + 1} failed: {exc}")
+            if attempt < SCRAPE_MAX_RETRIES - 1:
+                await asyncio.sleep(2)
+
+    if not products:
+        _jobs[job_id] = {
+            "status": "error",
+            "detail": "No products found. Check the store URL and API token are correct.",
+        }
+        return
+
+    timestamp  = datetime.now().strftime("%Y%m%d_%H%M%S")
+    brand_safe = sanitize(brand)
+
+    folder_id  = None
+    folder_url = None
+    try:
+        folder_id, folder_url, _ = create_brand_folder(brand_safe, timestamp)
+    except Exception as exc:
+        print(f"[Drive] Folder creation failed: {exc}")
+
+    csv_rows: list[dict] = []
+    for prod in products:
+        row: dict = {
+            "product_name":        prod["product_name"],
+            "price":               prod["price"],
+            "product_description": prod["product_description"],
+            "brand":               brand,
+        }
+        for i, asset in enumerate(prod["assets"][:4]):
+            row[f"asset_{i+1}_url"]  = asset["url"]
+            row[f"asset_{i+1}_type"] = asset["type"]
+        csv_rows.append(row)
+
+    if folder_id and csv_rows:
+        csv_headers = [
+            "product_name", "price", "product_description", "brand",
+            "asset_1_url", "asset_1_type",
+            "asset_2_url", "asset_2_type",
+            "asset_3_url", "asset_3_type",
+            "asset_4_url", "asset_4_type",
+        ]
+        try:
+            upload_csv_to_drive(
+                csv_rows, csv_headers,
+                f"{brand_safe}_{timestamp}_catalog.csv",
+                folder_id,
+            )
+        except Exception as exc:
+            print(f"[Drive] CSV upload error: {exc}")
+
+    await loop.run_in_executor(_executor, set_last_pulled, vendor_id)
+
+    _jobs[job_id] = {
+        "status": "done",
+        "result": {
+            "products":        products,
+            "platform":        platform,
+            "count":           len(products),
+            "drive_folder_url": folder_url,
+        },
+    }
+
+
+@app.post("/api/vendors/{vendor_id}/pull-products", status_code=202)
+async def vendor_pull_products(vendor_id: str, background_tasks: BackgroundTasks):
+    """Start an async product pull for the given vendor. Returns a job_id to poll."""
+    vendor = await asyncio.get_event_loop().run_in_executor(_executor, get_vendor, vendor_id)
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found.")
+
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {"status": "pending"}
+    background_tasks.add_task(_run_vendor_pull_job, job_id, vendor_id)
+    return {"job_id": job_id}
 
 
 # ---------------------------------------------------------------------------

@@ -570,6 +570,116 @@
       white-space: nowrap;
     }
 
+    /* ── Admin Panel ── */
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .84rem;
+    }
+    .admin-table th {
+      background: var(--bg);
+      color: var(--muted);
+      font-weight: 700;
+      font-size: .72rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 9px 14px;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+    .admin-table td {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .admin-table tbody tr:hover td { background: #fafaf8; }
+    .vendor-id-badge {
+      display: inline-block;
+      font-family: 'Courier New', monospace;
+      font-size: .68rem;
+      color: var(--accent);
+      background: #e8f4f0;
+      padding: 1px 6px;
+      border-radius: 3px;
+      margin-top: 2px;
+    }
+    .auth-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 4px;
+      font-size: .71rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .auth-badge.admin-api   { background: #e8f4f0; color: #2d6a4f; }
+    .auth-badge.storefront  { background: #fff8e1; color: #b07d1a; }
+    .auth-badge.public-only { background: #fdecea; color: #c0392b; }
+    .status-select {
+      padding: 4px 8px;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      font-size: .82rem;
+      background: var(--surface);
+      cursor: pointer;
+      outline: none;
+    }
+    .status-select:focus { border-color: var(--accent); }
+    .pull-btn {
+      padding: 5px 13px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: .8rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s;
+    }
+    .pull-btn:hover:not(:disabled) { background: var(--accent-hover); }
+    .pull-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .view-results-btn {
+      padding: 5px 12px;
+      background: transparent;
+      color: var(--accent);
+      border: 1.5px solid var(--accent);
+      border-radius: 5px;
+      font-size: .8rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s;
+    }
+    .view-results-btn:hover { background: #e8f4f0; }
+    .admin-notes-input {
+      width: 100%;
+      padding: 4px 8px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      font-size: .82rem;
+      background: transparent;
+      color: var(--text);
+      outline: none;
+      min-width: 120px;
+    }
+    .admin-notes-input:hover { border-color: var(--border); }
+    .admin-notes-input:focus { border-color: var(--accent); background: var(--surface); }
+    .admin-back-btn {
+      padding: 6px 14px;
+      background: transparent;
+      color: var(--accent);
+      border: 1.5px solid var(--accent);
+      border-radius: 6px;
+      font-size: .84rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .admin-back-btn:hover { background: #e8f4f0; }
+
     /* ── Responsive ── */
     @media (max-width: 900px) {
       .card-body { grid-template-columns: 1fr; }
@@ -607,6 +717,7 @@
     <button class="tab-btn"        data-tab="vendor"    onclick="switchTab('vendor')">Vendor Uploads</button>
     <button class="tab-btn"        data-tab="igpost"    onclick="switchTab('igpost')">View as IG Post</button>
     <button class="tab-btn"        data-tab="vendor-reg" onclick="switchTab('vendor-reg')">Vendor Registration</button>
+    <button class="tab-btn"        data-tab="admin"      onclick="switchTab('admin')">Admin</button>
   </div>
 </div>
 
@@ -788,6 +899,63 @@
   <div id="vendor-reg-root"></div>
 </div>
 
+<!-- ══════════ TAB: Admin Panel ══════════ -->
+<div class="tab-panel" id="tab-admin">
+
+  <!-- Controls bar -->
+  <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:14px 32px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <h2 style="font-size:1rem;font-weight:700;color:var(--text);margin:0">Vendor Admin</h2>
+      <span id="admin-vendor-count" style="font-size:.82rem;color:var(--muted)"></span>
+    </div>
+    <button class="btn-primary" id="adminRefreshBtn" onclick="loadVendors()">Refresh</button>
+  </div>
+
+  <!-- Status bar -->
+  <div id="admin-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
+    <div class="spinner" id="admin-statusSpinner" style="display:none"></div>
+    <span id="admin-statusText"></span>
+  </div>
+
+  <!-- Vendor table section -->
+  <div id="admin-vendor-section">
+    <div style="padding:20px 32px 0;overflow-x:auto">
+      <div id="admin-vendor-table-wrap">
+        <div id="admin-empty" style="text-align:center;padding:60px 20px;color:var(--muted)">
+          <div style="font-size:2.5rem;margin-bottom:12px">🏪</div>
+          <p>No vendor registrations yet.</p>
+          <p style="font-size:.82rem;margin-top:8px">Click <strong>Refresh</strong> to load, or wait for vendors to submit their registration.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product results section (shown after a pull completes) -->
+  <div id="admin-results-section" style="display:none">
+    <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:11px 32px;display:flex;align-items:center;gap:12px">
+      <button class="admin-back-btn" onclick="backToVendorTable()">← Back to Vendors</button>
+      <span id="admin-results-label" style="font-size:.9rem;font-weight:600;color:var(--text)"></span>
+    </div>
+    <div id="admin-drive-linkbar" style="display:none;padding:9px 32px;background:#fff8e1;border-bottom:1px solid #ffe082;font-size:.84rem;color:#5a4000">
+      Assets saved to Google Drive: <a id="admin-drive-link" href="#" target="_blank" style="color:var(--accent);font-weight:600">Open folder</a>
+    </div>
+    <div class="bulk-bar" id="admin-grid-bulkBar">
+      <span class="bulk-bar-label">Apply to all:</span>
+      <div class="bulk-field"><label>Level 1</label><input type="text" placeholder="e.g. Hampers" data-field="level_1" /></div>
+      <div class="bulk-field"><label>Level 2</label><input type="text" placeholder="e.g. Occasion" data-field="level_2" /></div>
+      <div class="bulk-field"><label>Level 3</label><input type="text" placeholder="Sub category" data-field="level_3" /></div>
+      <div class="bulk-field"><label>Level 4</label><input type="text" placeholder="Sub category" data-field="level_4" /></div>
+      <div class="bulk-field"><label>Level 5</label><input type="text" placeholder="Sub category" data-field="level_5" /></div>
+      <div class="bulk-field"><label>Price</label><input type="text" placeholder="e.g. 29.99" data-field="price" /></div>
+      <button class="bulk-apply-btn" onclick="applyBulkFill('admin-grid')">Apply to All Products</button>
+    </div>
+    <main>
+      <div id="admin-grid"></div>
+    </main>
+  </div>
+
+</div><!-- /tab-admin -->
+
 <!-- ── Shared action bar (position:fixed, always visible when items selected) ── -->
 <div id="actionBar">
   <span id="selectionSummary">No items selected</span>
@@ -827,8 +995,14 @@
     instagram: { productState: [], selectedAssets: new Map() },
     vendor:    { productState: [], selectedAssets: new Map() },
     igpost:    { productState: [], selectedAssets: new Map() },
+    admin:     { productState: [], selectedAssets: new Map() },
   };
   let activeTab = 'scraper';
+
+  // ── Admin panel state ──
+  let adminVendors         = [];
+  let adminCurrentVendorBrand = '';
+  let adminStoredResults   = {}; // vendorId -> { products, drive_folder_url }
 
   // Helpers to get current tab's state
   const S = () => tabStates[activeTab];
@@ -851,11 +1025,21 @@
 
     activeTab = name;
     updateActionBar();
+
+    // Auto-load vendors the first time the admin tab is opened
+    if (name === 'admin' && !_adminLoaded) {
+      _adminLoaded = true;
+      loadVendors();
+    }
   }
 
   // ── Status helpers (tab-aware) ──
   function showStatus(msg, type = 'info', loading = false) {
-    const prefix = activeTab === 'drive' ? 'drive-' : activeTab === 'instagram' ? 'instagram-' : activeTab === 'vendor' ? 'vendor-' : '';
+    const prefix = activeTab === 'drive'      ? 'drive-'
+                 : activeTab === 'instagram'  ? 'instagram-'
+                 : activeTab === 'vendor'     ? 'vendor-'
+                 : activeTab === 'admin'      ? 'admin-'
+                 : '';
     const bar     = document.getElementById(`${prefix}statusBar`);
     const spinner = document.getElementById(`${prefix}statusSpinner`);
     const text    = document.getElementById(`${prefix}statusText`);
@@ -1367,7 +1551,9 @@
         ? document.getElementById('igBrandInput').value.trim()
         : activeTab === 'vendor'
           ? ''   // vendor brand comes per-product from the sheet
-          : document.getElementById('brandInput').value.trim();
+          : activeTab === 'admin'
+            ? adminCurrentVendorBrand
+            : document.getElementById('brandInput').value.trim();
     const selectedProducts = S().productState
       .map((prod, pIdx) => {
         const sel = prod.assets.filter((_, ai) => S().selectedAssets.get(`${pIdx}_${ai}`));
@@ -1504,6 +1690,328 @@
   ['vendorSheetInput','vendorBrandInput'].forEach(id =>
     document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') getVendorData(); })
   );
+
+  // ══════════════════════════════════════════════════════════════
+  // Admin panel functions
+  // ══════════════════════════════════════════════════════════════
+
+  // Load or refresh vendor list
+  async function loadVendors() {
+    const btn = document.getElementById('adminRefreshBtn');
+    if (btn) setLoading(btn, true, 'Refreshing…');
+    try {
+      const res  = await fetch(`${API_BASE}/api/vendors`);
+      const data = await res.json();
+      if (!res.ok) {
+        showAdminStatus(data.detail || 'Could not load vendors.', 'error');
+        return;
+      }
+      adminVendors = data.vendors || [];
+      renderVendorTable(adminVendors);
+      const countEl = document.getElementById('admin-vendor-count');
+      if (countEl) countEl.textContent = `${adminVendors.length} vendor${adminVendors.length !== 1 ? 's' : ''}`;
+    } catch (err) {
+      showAdminStatus(`Network error: ${err.message}`, 'error');
+    } finally {
+      if (btn) setLoading(btn, false, 'Refresh');
+    }
+  }
+
+  function showAdminStatus(msg, type = 'info', loading = false) {
+    const bar     = document.getElementById('admin-statusBar');
+    const spinner = document.getElementById('admin-statusSpinner');
+    const text    = document.getElementById('admin-statusText');
+    if (!bar) return;
+    bar.style.cssText = `display:flex;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center;background:${type === 'error' ? '#fdecea' : '#e8f4f0'};color:${type === 'error' ? '#c0392b' : '#1b4332'}`;
+    spinner.style.display = loading ? 'block' : 'none';
+    text.textContent = msg;
+  }
+
+  function hideAdminStatus() {
+    const bar = document.getElementById('admin-statusBar');
+    if (bar) bar.style.display = 'none';
+  }
+
+  function fmtDate(d) {
+    if (!d) return '—';
+    try { return new Date(d).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: '2-digit' }); }
+    catch { return (d || '').substring(0, 10) || '—'; }
+  }
+
+  function renderVendorTable(vendors) {
+    const wrap  = document.getElementById('admin-vendor-table-wrap');
+    const empty = document.getElementById('admin-empty');
+    if (!wrap) return;
+
+    if (!vendors.length) {
+      wrap.innerHTML = '';
+      if (empty) { empty.style.display = 'block'; wrap.appendChild(empty); }
+      return;
+    }
+
+    const scrollWrap = document.createElement('div');
+    scrollWrap.style.cssText = 'overflow-x:auto;padding-bottom:140px';
+
+    const table = document.createElement('table');
+    table.className = 'admin-table';
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th>Brand</th>
+          <th>Store URL</th>
+          <th>Plan</th>
+          <th>API Auth</th>
+          <th>Status</th>
+          <th>Contact</th>
+          <th>Categories</th>
+          <th>Submitted</th>
+          <th>Last Pulled</th>
+          <th>Notes</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="admin-tbody"></tbody>
+    `;
+
+    scrollWrap.appendChild(table);
+    wrap.innerHTML = '';
+    wrap.appendChild(scrollWrap);
+
+    const tbody = document.getElementById('admin-tbody');
+    vendors.forEach(v => {
+      const tr = document.createElement('tr');
+      tr.id = `vendor-row-${v.id}`;
+
+      // Auth badge
+      let authBadge;
+      if (v.admin_token) {
+        authBadge = `<span class="auth-badge admin-api">✓ Admin API</span>`;
+      } else if (v.storefront_token) {
+        authBadge = `<span class="auth-badge storefront">⚡ Storefront</span>`;
+      } else {
+        authBadge = `<span class="auth-badge public-only">○ Public</span>`;
+      }
+
+      const storeDisplay = (v.store_url || '').replace(/^https?:\/\//, '');
+      const storeHref    = v.store_url ? (v.store_url.startsWith('http') ? v.store_url : `https://${v.store_url}`) : '#';
+
+      const statusOptions = ['pending', 'active', 'suspended']
+        .map(s => `<option value="${s}"${v.status === s ? ' selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`)
+        .join('');
+
+      const cats = Array.isArray(v.categories) ? v.categories.slice(0, 3).join(', ') + (v.categories.length > 3 ? '…' : '') : '—';
+
+      tr.innerHTML = `
+        <td>
+          <div style="font-weight:600;color:var(--text);white-space:nowrap">${escHtml(v.brand_name || '—')}</div>
+          <span class="vendor-id-badge">${escHtml(v.id)}</span>
+        </td>
+        <td style="max-width:180px">
+          ${storeDisplay
+            ? `<a href="${escAttr(storeHref)}" target="_blank" style="color:var(--accent);font-size:.82rem;text-decoration:none;word-break:break-all" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${escHtml(storeDisplay)}</a>`
+            : '<span style="color:var(--muted)">—</span>'}
+        </td>
+        <td>
+          ${v.plan ? `<span style="font-size:.75rem;background:var(--bg);border:1px solid var(--border);padding:2px 7px;border-radius:4px;white-space:nowrap">${escHtml(v.plan)}</span>` : '<span style="color:var(--muted)">—</span>'}
+        </td>
+        <td>${authBadge}</td>
+        <td>
+          <select class="status-select" onchange="updateVendorStatus('${escAttr(v.id)}', this.value)">
+            ${statusOptions}
+          </select>
+        </td>
+        <td style="font-size:.82rem;color:var(--muted);white-space:nowrap">
+          ${escHtml(v.contact_email || '—')}
+          ${v.contact_name ? `<br><span style="font-size:.75rem">${escHtml(v.contact_name)}</span>` : ''}
+        </td>
+        <td style="font-size:.79rem;color:var(--muted);max-width:140px">${escHtml(cats || '—')}</td>
+        <td style="font-size:.82rem;color:var(--muted);white-space:nowrap">${fmtDate(v.submitted_at)}</td>
+        <td style="font-size:.82rem;color:var(--muted);white-space:nowrap" id="last-pulled-${escAttr(v.id)}">${fmtDate(v.last_pulled_at)}</td>
+        <td>
+          <input class="admin-notes-input" type="text" value="${escAttr(v.notes || '')}" placeholder="Add notes…"
+            onblur="saveVendorNotes('${escAttr(v.id)}', this.value)"
+            onkeydown="if(event.key==='Enter'){this.blur()}" />
+        </td>
+        <td>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">
+            <button class="pull-btn" id="pull-btn-${escAttr(v.id)}"
+              onclick="pullVendorProducts('${escAttr(v.id)}')">
+              Pull Products
+            </button>
+            <button class="view-results-btn" id="view-results-${escAttr(v.id)}" style="display:none"
+              onclick="showStoredResults('${escAttr(v.id)}')">
+              View Results
+            </button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Update vendor status inline
+  async function updateVendorStatus(vendorId, newStatus) {
+    try {
+      await fetch(`${API_BASE}/api/vendors/${encodeURIComponent(vendorId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+    } catch (err) {
+      console.warn('[Admin] Status update failed:', err);
+    }
+  }
+
+  // Save notes inline on blur
+  async function saveVendorNotes(vendorId, notes) {
+    try {
+      await fetch(`${API_BASE}/api/vendors/${encodeURIComponent(vendorId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes }),
+      });
+    } catch (err) {
+      console.warn('[Admin] Notes save failed:', err);
+    }
+  }
+
+  // Start a product pull for a vendor
+  async function pullVendorProducts(vendorId) {
+    const vendor = adminVendors.find(v => v.id === vendorId);
+    if (!vendor) return;
+
+    adminCurrentVendorBrand = vendor.brand_name || vendorId;
+
+    const pullBtn    = document.getElementById(`pull-btn-${vendorId}`);
+    const viewBtn    = document.getElementById(`view-results-${vendorId}`);
+
+    if (pullBtn) { pullBtn.disabled = true; pullBtn.textContent = 'Pulling…'; }
+    if (viewBtn) viewBtn.style.display = 'none';
+
+    showAdminStatus(`Pulling products for ${adminCurrentVendorBrand}…`, 'info', true);
+
+    try {
+      const startRes = await fetch(`${API_BASE}/api/vendors/${encodeURIComponent(vendorId)}/pull-products`, {
+        method: 'POST',
+      });
+      if (!startRes.ok) {
+        const err = await startRes.json().catch(() => ({}));
+        showAdminStatus(err.detail || 'Failed to start product pull.', 'error');
+        if (pullBtn) { pullBtn.disabled = false; pullBtn.textContent = 'Pull Products'; }
+        return;
+      }
+      const { job_id } = await startRes.json();
+
+      // Poll for result (same flow as scraper tab)
+      let elapsed = 0;
+      const POLL_INTERVAL = 3000;
+      const MAX_WAIT      = 360000;
+
+      while (elapsed < MAX_WAIT) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL));
+        elapsed += POLL_INTERVAL;
+
+        const pollRes = await fetch(`${API_BASE}/api/scrape-status/${job_id}`);
+        const job     = await pollRes.json();
+
+        if (job.status === 'pending') continue;
+
+        if (job.status === 'error') {
+          showAdminStatus(job.detail || 'Product pull failed.', 'error');
+          if (pullBtn) { pullBtn.disabled = false; pullBtn.textContent = 'Retry Pull'; }
+          return;
+        }
+
+        if (job.status === 'done') {
+          const result = job.result;
+
+          // Store results in memory and update last-pulled cell
+          adminStoredResults[vendorId] = result;
+          const lpCell = document.getElementById(`last-pulled-${vendorId}`);
+          if (lpCell) lpCell.textContent = fmtDate(new Date().toISOString());
+
+          if (pullBtn) { pullBtn.disabled = false; pullBtn.textContent = 'Pull Again'; }
+          if (viewBtn) viewBtn.style.display = 'inline-flex';
+
+          showAdminStatus(
+            `Pulled ${result.count} product${result.count !== 1 ? 's' : ''} for ${adminCurrentVendorBrand}. Select assets below and click Approve to push to ImageKit.`,
+            'success'
+          );
+
+          showAdminProductResults(vendorId, result);
+          return;
+        }
+      }
+
+      showAdminStatus('Pull timed out — the store took too long to respond.', 'error');
+      if (pullBtn) { pullBtn.disabled = false; pullBtn.textContent = 'Retry Pull'; }
+    } catch (err) {
+      showAdminStatus(`Network error: ${err.message}`, 'error');
+      if (pullBtn) { pullBtn.disabled = false; pullBtn.textContent = 'Retry Pull'; }
+    }
+  }
+
+  // Display stored results for a vendor without re-pulling
+  function showStoredResults(vendorId) {
+    const result = adminStoredResults[vendorId];
+    if (!result) return;
+    const vendor = adminVendors.find(v => v.id === vendorId);
+    adminCurrentVendorBrand = (vendor && vendor.brand_name) || vendorId;
+    showAdminProductResults(vendorId, result);
+  }
+
+  // Show the product grid (results panel) for a completed pull
+  function showAdminProductResults(vendorId, result) {
+    const vendor = adminVendors.find(v => v.id === vendorId);
+    const brand  = (vendor && vendor.brand_name) || vendorId;
+
+    // Switch active tab state so S() points to admin
+    activeTab = 'admin';
+
+    // Populate tabState
+    tabStates.admin.productState = (result.products || []).map(p => ({
+      ...p,
+      assets:  p.assets.map(a => ({ ...a })),
+      level_1: '', level_2: '', level_3: '', level_4: '', level_5: '',
+    }));
+    tabStates.admin.selectedAssets.clear();
+
+    // Hide vendor table, show results section
+    document.getElementById('admin-vendor-section').style.display  = 'none';
+    document.getElementById('admin-results-section').style.display = 'block';
+
+    // Update results header label
+    const label = document.getElementById('admin-results-label');
+    if (label) label.textContent = `${brand} — ${result.count} product${result.count !== 1 ? 's' : ''} (${result.platform || 'shopify'})`;
+
+    // Drive folder link
+    const linkBar = document.getElementById('admin-drive-linkbar');
+    const link    = document.getElementById('admin-drive-link');
+    if (result.drive_folder_url && linkBar && link) {
+      link.href = result.drive_folder_url;
+      linkBar.style.display = 'block';
+    } else if (linkBar) {
+      linkBar.style.display = 'none';
+    }
+
+    // Bulk bar
+    const bulkBar = document.getElementById('admin-grid-bulkBar');
+    if (bulkBar) bulkBar.style.display = result.count ? 'flex' : 'none';
+
+    renderGrid('admin-grid');
+    updateActionBar();
+  }
+
+  // Return to the vendor table from the results view
+  function backToVendorTable() {
+    document.getElementById('admin-results-section').style.display = 'none';
+    document.getElementById('admin-vendor-section').style.display  = 'block';
+    tabStates.admin.productState = [];
+    tabStates.admin.selectedAssets.clear();
+    updateActionBar();
+  }
+
+  let _adminLoaded = false;
 </script>
 
 <script type="text/babel">
@@ -2221,9 +2729,18 @@ function VendorRegistration() {
     setTimeout(() => setSavedMsg(false), 2000);
   };
 
-  const submit = () => {
+  const submit = async () => {
     const final = { ...data, submitted:true, submittedAt:today() };
     saveReg(final);
+    try {
+      await fetch('/api/vendors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(final),
+      });
+    } catch (e) {
+      console.warn('[Registration] Could not sync to backend:', e);
+    }
     setData(final);
     setSubmitted(true);
   };
