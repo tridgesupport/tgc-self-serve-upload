@@ -51,26 +51,23 @@
       letter-spacing: -.3px;
       white-space: nowrap;
     }
-    .header-form {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex: 1;
-      flex-wrap: wrap;
+    /* source badges for admin pull buttons */
+    .src-btn {
+      padding: 4px 11px;
+      border: none;
+      border-radius: 5px;
+      font-size: .78rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity .15s;
     }
-    .header-form input {
-      padding: 8px 13px;
-      border: 1px solid var(--border);
-      border-radius: 7px;
-      font-size: .88rem;
-      color: var(--text);
-      background: var(--bg);
-      outline: none;
-      transition: border .15s;
-    }
-    .header-form input:focus { border-color: var(--accent); }
-    #urlInput   { flex: 2; min-width: 220px; }
-    #brandInput { flex: 1; min-width: 150px; }
+    .src-btn:hover:not(:disabled) { opacity: .82; }
+    .src-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .src-btn.shopify { background: #96bf48; color: #fff; }
+    .src-btn.drive   { background: #4285f4; color: #fff; }
+    .src-btn.csv     { background: #e67e22; color: #fff; }
+    .src-btn.website { background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
     .btn-primary {
       padding: 8px 18px;
       background: var(--accent);
@@ -203,7 +200,7 @@
     .bulk-apply-btn:hover { background: var(--accent-hover); }
 
     /* ── Main content ── */
-    main { padding: 24px 32px 120px; max-width: 1400px; margin: 0 auto; }
+    main { padding: 24px 32px 40px; max-width: 1400px; margin: 0 auto; }
 
     #emptyState {
       text-align: center;
@@ -404,10 +401,10 @@
       border-radius: 10px;
     }
 
-    /* ── Action bar ── */
+    /* ── Action bar (fixed inside the results section) ── */
     #actionBar {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
+      position: sticky;
+      bottom: 0;
       background: var(--surface);
       border-top: 1px solid var(--border);
       padding: 13px 32px;
@@ -415,7 +412,7 @@
       align-items: center;
       justify-content: space-between;
       box-shadow: 0 -4px 16px rgba(0,0,0,.07);
-      z-index: 99;
+      z-index: 50;
     }
     #selectionSummary { font-size: .88rem; color: var(--muted); }
     #selectionSummary strong { color: var(--accent); }
@@ -785,200 +782,17 @@
 <div id="stickyTop">
   <header>
     <h1>TGC Upload</h1>
-    <div class="header-form" id="form-scraper">
-      <input id="urlInput"   type="url"  placeholder="Brand website URL (e.g. https://example.myshopify.com)" />
-      <input id="brandInput" type="text" placeholder="Brand name" />
-      <button class="btn-primary" id="getProductsBtn" onclick="getProducts()">Get Products</button>
-    </div>
   </header>
 
   <!-- ── Tab bar ── -->
   <div id="tabBar">
-    <button class="tab-btn active" data-tab="scraper"   onclick="switchTab('scraper')">Product Scraper</button>
-    <button class="tab-btn"        data-tab="drive"     onclick="switchTab('drive')">Google Drive Folders</button>
-    <button class="tab-btn"        data-tab="instagram" onclick="switchTab('instagram')">Instagram Handles</button>
-    <button class="tab-btn"        data-tab="vendor"    onclick="switchTab('vendor')">Vendor Uploads</button>
-    <button class="tab-btn"        data-tab="igpost"    onclick="switchTab('igpost')">View as IG Post</button>
-    <button class="tab-btn"        data-tab="vendor-reg" onclick="switchTab('vendor-reg')">Vendor Registration</button>
+    <button class="tab-btn active" data-tab="vendor-reg" onclick="switchTab('vendor-reg')">Vendor Registration</button>
     <button class="tab-btn"        data-tab="admin"      onclick="switchTab('admin')">Admin<span id="admin-pending-badge"></span></button>
   </div>
 </div>
 
-<!-- ══════════ TAB: Product Scraper ══════════ -->
-<div class="tab-panel active" id="tab-scraper">
-
-  <div id="statusBar">
-    <div class="spinner" id="statusSpinner" style="display:none"></div>
-    <span id="statusText"></span>
-  </div>
-
-  <div id="driveLinkBar">
-    Assets saved to Google Drive: <a id="driveLinkAnchor" href="#" target="_blank">Open folder</a>
-  </div>
-
-  <div class="bulk-bar" id="productGrid-bulkBar">
-    <span class="bulk-bar-label">Apply to all:</span>
-    <div class="bulk-field"><label>Level 1</label><input type="text" placeholder="e.g. Hampers" data-field="level_1" /></div>
-    <div class="bulk-field"><label>Level 2</label><input type="text" placeholder="e.g. Occasion" data-field="level_2" /></div>
-    <div class="bulk-field"><label>Level 3</label><input type="text" placeholder="Sub category" data-field="level_3" /></div>
-    <div class="bulk-field"><label>Level 4</label><input type="text" placeholder="Sub category" data-field="level_4" /></div>
-    <div class="bulk-field"><label>Level 5</label><input type="text" placeholder="Sub category" data-field="level_5" /></div>
-    <div class="bulk-field"><label>Price</label><input type="text" placeholder="e.g. 29.99" data-field="price" /></div>
-    <button class="bulk-apply-btn" onclick="applyBulkFill('productGrid')">Apply to All Products</button>
-  </div>
-
-  <main>
-    <div id="emptyState">
-      <div class="icon">🖼️</div>
-      <p>Enter a brand URL above and click <strong>Get Products</strong> to begin.</p>
-    </div>
-    <div id="productGrid"></div>
-  </main>
-
-
-</div><!-- /tab-scraper -->
-
-<!-- ══════════ TAB: Instagram Handles ══════════ -->
-<div class="tab-panel" id="tab-instagram">
-
-  <!-- Instagram input form — lives inside the tab -->
-  <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <input id="igHandleInput" type="text"
-      placeholder="Instagram handle (e.g. @brandname)"
-      style="flex:2;min-width:220px;padding:9px 13px;border:1px solid var(--border);border-radius:7px;font-size:.88rem;outline:none;background:var(--bg)"
-      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
-    <input id="igBrandInput" type="text"
-      placeholder="Brand name"
-      style="flex:1;min-width:150px;padding:9px 13px;border:1px solid var(--border);border-radius:7px;font-size:.88rem;outline:none;background:var(--bg)"
-      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
-    <button class="btn-primary" id="getIgBtn" onclick="getInstagramPosts()">Get Posts</button>
-    <button class="btn-primary" id="igPushBtn" onclick="pushToInstagram()" disabled>Push to Instagram</button>
-  </div>
-
-  <div id="instagram-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
-    <div class="spinner" id="instagram-statusSpinner" style="display:none"></div>
-    <span id="instagram-statusText"></span>
-  </div>
-
-  <div id="instagram-driveLinkBar" style="display:none;padding:9px 32px;background:#fff8e1;border-bottom:1px solid #ffe082;font-size:.84rem;color:#5a4000">
-    Assets saved to Google Drive: <a id="instagram-driveLinkAnchor" href="#" target="_blank" style="color:#2d6a4f;font-weight:600">Open folder</a>
-  </div>
-
-  <div class="bulk-bar" id="instagram-grid-bulkBar">
-    <span class="bulk-bar-label">Apply to all:</span>
-    <div class="bulk-field"><label>Level 1</label><input type="text" placeholder="e.g. Hampers" data-field="level_1" /></div>
-    <div class="bulk-field"><label>Level 2</label><input type="text" placeholder="e.g. Occasion" data-field="level_2" /></div>
-    <div class="bulk-field"><label>Level 3</label><input type="text" placeholder="Sub category" data-field="level_3" /></div>
-    <div class="bulk-field"><label>Level 4</label><input type="text" placeholder="Sub category" data-field="level_4" /></div>
-    <div class="bulk-field"><label>Level 5</label><input type="text" placeholder="Sub category" data-field="level_5" /></div>
-    <div class="bulk-field"><label>Price</label><input type="text" placeholder="e.g. 29.99" data-field="price" /></div>
-    <button class="bulk-apply-btn" onclick="applyBulkFill('instagram-grid')">Apply to All Products</button>
-  </div>
-
-  <main>
-    <div id="instagram-emptyState" style="text-align:center;padding:80px 20px;color:var(--muted)">
-      <div class="icon" style="font-size:3rem;margin-bottom:12px">📸</div>
-      <p>Enter an Instagram handle above and click <strong>Get Posts</strong> to begin.</p>
-      <p style="font-size:.82rem;margin-top:10px;color:var(--muted)">Only <em>public</em> accounts can be scraped. Up to 20 recent posts will be fetched.</p>
-    </div>
-    <div id="instagram-grid"></div>
-  </main>
-
-</div>
-
-<!-- ══════════ TAB: Vendor Uploads ══════════ -->
-<div class="tab-panel" id="tab-vendor">
-
-  <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;gap:10px">
-    <button class="btn-primary" id="getVendorBtn" onclick="getVendorData()">Get Data</button>
-    <span style="font-size:.82rem;color:var(--muted)">Loads products from the configured vendor upload sheet.</span>
-  </div>
-
-  <div id="vendor-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
-    <div class="spinner" id="vendor-statusSpinner" style="display:none"></div>
-    <span id="vendor-statusText"></span>
-  </div>
-
-  <div class="bulk-bar" id="vendor-grid-bulkBar">
-    <span class="bulk-bar-label">Apply to all:</span>
-    <div class="bulk-field"><label>Level 1</label><input type="text" placeholder="e.g. Hampers" data-field="level_1" /></div>
-    <div class="bulk-field"><label>Level 2</label><input type="text" placeholder="e.g. Occasion" data-field="level_2" /></div>
-    <div class="bulk-field"><label>Level 3</label><input type="text" placeholder="Sub category" data-field="level_3" /></div>
-    <div class="bulk-field"><label>Level 4</label><input type="text" placeholder="Sub category" data-field="level_4" /></div>
-    <div class="bulk-field"><label>Level 5</label><input type="text" placeholder="Sub category" data-field="level_5" /></div>
-    <div class="bulk-field"><label>Price</label><input type="text" placeholder="e.g. 29.99" data-field="price" /></div>
-    <button class="bulk-apply-btn" onclick="applyBulkFill('vendor-grid')">Apply to All Products</button>
-  </div>
-
-  <main>
-    <div id="vendor-emptyState" style="text-align:center;padding:80px 20px;color:var(--muted)">
-      <div class="icon" style="font-size:3rem;margin-bottom:12px">📋</div>
-      <p>Paste a Google Sheet URL above and click <strong>Get Data</strong>.</p>
-      <p style="font-size:.82rem;margin-top:10px;color:var(--muted)">The sheet must have columns: <em>product_name, asset_1_url, asset_2_url…</em> and the service account must be an Editor.</p>
-    </div>
-    <div id="vendor-grid"></div>
-  </main>
-
-</div>
-
-<!-- ══════════ TAB: View as IG Post ══════════ -->
-<div class="tab-panel" id="tab-igpost">
-  <div class="coming-soon">
-    <div class="icon">🖼️</div>
-    <h2>View as IG Post</h2>
-    <p>Preview selected assets formatted as an Instagram post layout. Coming soon.</p>
-  </div>
-</div>
-
-<!-- ══════════ TAB: Google Drive Folders ══════════ -->
-<div class="tab-panel" id="tab-drive">
-
-  <!-- Drive input form — lives inside the tab -->
-  <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <input id="driveUrlInput" type="url"
-      placeholder="Google Drive folder URL (must be public)"
-      style="flex:2;min-width:260px;padding:9px 13px;border:1px solid var(--border);border-radius:7px;font-size:.88rem;outline:none;background:var(--bg)"
-      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
-    <input id="driveBrandInput" type="text"
-      placeholder="Brand name"
-      style="flex:1;min-width:150px;padding:9px 13px;border:1px solid var(--border);border-radius:7px;font-size:.88rem;outline:none;background:var(--bg)"
-      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
-    <button class="btn-primary" id="getDriveBtn" onclick="getDriveFiles()">Get Files</button>
-  </div>
-
-  <div id="drive-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
-    <div class="spinner" id="drive-statusSpinner" style="display:none"></div>
-    <span id="drive-statusText"></span>
-  </div>
-
-  <div id="drive-driveLinkBar" style="display:none;padding:9px 32px;background:#fff8e1;border-bottom:1px solid #ffe082;font-size:.84rem;color:#5a4000">
-    Assets saved to Google Drive: <a id="drive-driveLinkAnchor" href="#" target="_blank" style="color:#2d6a4f;font-weight:600">Open folder</a>
-  </div>
-
-  <div class="bulk-bar" id="drive-grid-bulkBar">
-    <span class="bulk-bar-label">Apply to all:</span>
-    <div class="bulk-field"><label>Level 1</label><input type="text" placeholder="e.g. Hampers" data-field="level_1" /></div>
-    <div class="bulk-field"><label>Level 2</label><input type="text" placeholder="e.g. Occasion" data-field="level_2" /></div>
-    <div class="bulk-field"><label>Level 3</label><input type="text" placeholder="Sub category" data-field="level_3" /></div>
-    <div class="bulk-field"><label>Level 4</label><input type="text" placeholder="Sub category" data-field="level_4" /></div>
-    <div class="bulk-field"><label>Level 5</label><input type="text" placeholder="Sub category" data-field="level_5" /></div>
-    <div class="bulk-field"><label>Price</label><input type="text" placeholder="e.g. 29.99" data-field="price" /></div>
-    <button class="bulk-apply-btn" onclick="applyBulkFill('drive-grid')">Apply to All Products</button>
-  </div>
-
-  <main>
-    <div id="drive-emptyState" style="text-align:center;padding:80px 20px;color:var(--muted)">
-      <div class="icon" style="font-size:3rem;margin-bottom:12px">📁</div>
-      <p>Paste a public Google Drive folder URL above and click <strong>Get Files</strong>.</p>
-      <p style="font-size:.82rem;margin-top:10px;color:var(--muted)">The folder must be set to <em>"Anyone with the link can view"</em>.</p>
-    </div>
-    <div id="drive-grid"></div>
-  </main>
-
-</div>
-
 <!-- ══════════ TAB: Vendor Registration ══════════ -->
-<div class="tab-panel" id="tab-vendor-reg">
+<div class="tab-panel active" id="tab-vendor-reg">
   <div id="vendor-reg-root"></div>
 </div>
 
@@ -1045,19 +859,18 @@
       <div class="bulk-field"><label>Price</label><input type="text" placeholder="e.g. 29.99" data-field="price" /></div>
       <button class="bulk-apply-btn" onclick="applyBulkFill('admin-grid')">Apply to All Products</button>
     </div>
-    <main>
+    <main style="padding-bottom:100px">
       <div id="admin-grid"></div>
     </main>
+    <!-- action bar lives here so it only appears during product review -->
+    <div id="actionBar">
+      <span id="selectionSummary">No items selected</span>
+      <button id="selectAllBtn" onclick="selectAllAssets()">Select All</button>
+      <button id="pushBtn" disabled onclick="pushToStorage()">Approve &amp; Push to ImageKit</button>
+    </div>
   </div>
 
 </div><!-- /tab-admin -->
-
-<!-- ── Shared action bar (position:fixed, always visible when items selected) ── -->
-<div id="actionBar">
-  <span id="selectionSummary">No items selected</span>
-  <button id="selectAllBtn" onclick="selectAllAssets()">Select All</button>
-  <button id="pushBtn" disabled onclick="pushToStorage()">Approve</button>
-</div>
 
 <!-- ── Result modal ── -->
 <div id="resultModal">
@@ -1084,65 +897,42 @@
 <script>
   const API_BASE = window.API_BASE_URL || '';
 
-  // ── Per-tab state ──
+  // ── State (single grid — admin results only) ──
   const tabStates = {
-    scraper:   { productState: [], selectedAssets: new Map() },
-    drive:     { productState: [], selectedAssets: new Map() },
-    instagram: { productState: [], selectedAssets: new Map() },
-    vendor:    { productState: [], selectedAssets: new Map() },
-    igpost:    { productState: [], selectedAssets: new Map() },
-    admin:     { productState: [], selectedAssets: new Map() },
+    'vendor-reg': { productState: [], selectedAssets: new Map() },
+    admin:        { productState: [], selectedAssets: new Map() },
   };
-  let activeTab = 'scraper';
+  let activeTab = 'vendor-reg';
 
   // ── Admin panel state ──
-  let adminVendors         = [];
+  let adminVendors            = [];
   let adminCurrentVendorBrand = '';
-  let adminStoredResults   = {}; // vendorId -> { products, drive_folder_url }
+  let adminStoredResults      = {}; // vendorId → { products, drive_folder_url }
 
-  // Helpers to get current tab's state
-  const S = () => tabStates[activeTab];
+  const S = () => tabStates.admin;
 
   // Lightbox state
-  let lbProdIdx = -1;
+  let lbProdIdx  = -1;
   let lbAssetIdx = -1;
 
   // ── Tab switching ──
   function switchTab(name) {
-    // Highlight the correct tab button using data-tab (never relies on order)
     document.querySelectorAll('.tab-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.tab === name);
     });
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.getElementById(`tab-${name}`).classList.add('active');
-
-    // Show the scraper header form only on the scraper tab
-    document.getElementById('form-scraper').style.display = name === 'scraper' ? 'flex' : 'none';
-
     activeTab = name;
-    updateActionBar();
 
-    // Auto-load vendors the first time the admin tab is opened
     if (name === 'admin' && !_adminLoaded) {
       _adminLoaded = true;
       loadVendors();
     }
   }
 
-  // ── Status helpers (tab-aware) ──
+  // ── Status helper (admin bar only) ──
   function showStatus(msg, type = 'info', loading = false) {
-    const prefix = activeTab === 'drive'      ? 'drive-'
-                 : activeTab === 'instagram'  ? 'instagram-'
-                 : activeTab === 'vendor'     ? 'vendor-'
-                 : activeTab === 'admin'      ? 'admin-'
-                 : '';
-    const bar     = document.getElementById(`${prefix}statusBar`);
-    const spinner = document.getElementById(`${prefix}statusSpinner`);
-    const text    = document.getElementById(`${prefix}statusText`);
-    if (!bar) return;
-    bar.style.cssText = `display:flex;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center;background:${type==='error'?'#fdecea':type==='success'?'#e8f4f0':'#e8f4f0'};color:${type==='error'?'#c0392b':'#1b4332'}`;
-    spinner.style.display = loading ? 'block' : 'none';
-    text.textContent = msg;
+    showAdminStatus(msg, type, loading);
   }
 
   function setLoading(btn, loading, label) {
@@ -1152,7 +942,7 @@
       : label;
   }
 
-  // ── Bulk-fill: apply non-empty values to all products in the current tab ──
+  // ── Bulk-fill for admin grid ──
   function applyBulkFill(gridId) {
     const bar = document.getElementById(gridId + '-bulkBar');
     if (!bar) return;
@@ -1166,215 +956,6 @@
     S().productState.forEach(prod => Object.assign(prod, updates));
     renderGrid(gridId);
     updateActionBar();
-  }
-
-  // ── Shared function to handle a scrape API response ──
-  function handleScrapeResponse(data, emptyId, linkBarId, linkAnchorId, gridId) {
-    const products = data.products || [];
-    S().productState = products.map(p => ({
-      ...p,
-      assets: p.assets.map(a => ({ ...a })),
-      level_1: '', level_2: '', level_3: '', level_4: '', level_5: ''
-    }));
-    S().selectedAssets.clear();
-
-    if (data.drive_folder_url) {
-      document.getElementById(linkAnchorId).href = data.drive_folder_url;
-      document.getElementById(linkBarId).style.display = 'block';
-    }
-
-    const platform = data.platform || '';
-    const label = platform === 'google_drive' ? 'Google Drive' : platform;
-    showStatus(
-      `Found ${products.length} file${products.length !== 1 ? 's' : ''}${label ? ' (' + label + ')' : ''}. Click images to preview, use ✓ to select.`,
-      'success'
-    );
-    const bulkBar = document.getElementById(gridId + '-bulkBar');
-    if (bulkBar) bulkBar.style.display = products.length ? 'flex' : 'none';
-    renderGrid(gridId);
-    updateActionBar();
-  }
-
-  // ── Get Products (scraper tab) ──
-  async function getProducts() {
-    const url   = document.getElementById('urlInput').value.trim();
-    const brand = document.getElementById('brandInput').value.trim();
-    if (!url || !brand) { showStatus('Please enter both a URL and a brand name.', 'error'); return; }
-
-    const btn = document.getElementById('getProductsBtn');
-    setLoading(btn, true, 'Scraping…');
-    showStatus('Scraping products and uploading assets to Drive — this may take a minute…', 'info', true);
-    document.getElementById('driveLinkBar').style.display = 'none';
-    document.getElementById('emptyState').style.display = 'none';
-    document.getElementById('productGrid').innerHTML = '';
-    S().selectedAssets.clear();
-    updateActionBar();
-
-    try {
-      // Step 1: start the job
-      const startRes = await fetch(`${API_BASE}/api/scrape`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, brand }),
-      });
-      if (!startRes.ok) {
-        const err = await startRes.json().catch(() => ({}));
-        showStatus(err.detail || "Failed to start scrape.", 'error');
-        document.getElementById('emptyState').style.display = 'block';
-        setLoading(btn, false, 'Get Products'); return;
-      }
-      const { job_id } = await startRes.json();
-
-      // Step 2: poll until done
-      let elapsed = 0;
-      const POLL_INTERVAL = 3000;
-      const MAX_WAIT = 360000; // 6 minutes
-      while (elapsed < MAX_WAIT) {
-        await new Promise(r => setTimeout(r, POLL_INTERVAL));
-        elapsed += POLL_INTERVAL;
-
-        const pollRes = await fetch(`${API_BASE}/api/scrape-status/${job_id}`);
-        const job = await pollRes.json();
-
-        if (job.status === 'pending') continue;
-
-        if (job.status === 'error') {
-          showStatus(job.detail || "This website couldn't be scraped.", 'error');
-          document.getElementById('emptyState').style.display = 'block';
-          setLoading(btn, false, 'Get Products'); return;
-        }
-
-        if (job.status === 'done') {
-          handleScrapeResponse(job.result, 'emptyState', 'driveLinkBar', 'driveLinkAnchor', 'productGrid');
-          setLoading(btn, false, 'Get Products'); return;
-        }
-      }
-
-      showStatus("Scrape timed out — the site took too long to respond.", 'error');
-      document.getElementById('emptyState').style.display = 'block';
-    } catch (err) {
-      showStatus(`Network error: ${err.message}`, 'error');
-      document.getElementById('emptyState').style.display = 'block';
-    }
-    setLoading(btn, false, 'Get Products');
-  }
-
-  // ── Get Drive Files (drive tab) ──
-  async function getDriveFiles() {
-    const url   = document.getElementById('driveUrlInput').value.trim();
-    const brand = document.getElementById('driveBrandInput').value.trim();
-    if (!url || !brand) { showStatus('Please enter both a Drive URL and a brand name.', 'error'); return; }
-
-    const btn = document.getElementById('getDriveBtn');
-    setLoading(btn, true, 'Downloading…');
-    showStatus('Downloading from Google Drive and uploading to your folder — this may take several minutes for large folders…', 'info', true);
-    document.getElementById('drive-driveLinkBar').style.display = 'none';
-    document.getElementById('drive-emptyState').style.display = 'none';
-    document.getElementById('drive-grid').innerHTML = '';
-    S().selectedAssets.clear();
-    updateActionBar();
-
-    try {
-      const res  = await fetch(`${API_BASE}/api/scrape-drive`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, brand }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        showStatus(data.detail || "Couldn't access that Google Drive link.", 'error');
-        document.getElementById('drive-emptyState').style.display = 'block';
-        setLoading(btn, false, 'Get Files'); return;
-      }
-
-      handleScrapeResponse(data, 'drive-emptyState', 'drive-driveLinkBar', 'drive-driveLinkAnchor', 'drive-grid');
-    } catch (err) {
-      showStatus(`Network error: ${err.message}`, 'error');
-      document.getElementById('drive-emptyState').style.display = 'block';
-    }
-    setLoading(btn, false, 'Get Files');
-  }
-
-  // ── Get Instagram Posts (instagram tab) ──
-  async function getInstagramPosts() {
-    const handle = document.getElementById('igHandleInput').value.trim().replace(/^@/, '');
-    const brand  = document.getElementById('igBrandInput').value.trim();
-    if (!handle || !brand) { showStatus('Please enter both an Instagram handle and a brand name.', 'error'); return; }
-
-    const btn = document.getElementById('getIgBtn');
-    setLoading(btn, true, 'Fetching…');
-    showStatus('Fetching posts from Instagram — this may take a minute due to rate limits…', 'info', true);
-    document.getElementById('instagram-driveLinkBar').style.display = 'none';
-    document.getElementById('instagram-emptyState').style.display = 'none';
-    document.getElementById('instagram-grid').innerHTML = '';
-    S().selectedAssets.clear();
-    updateActionBar();
-
-    try {
-      const res  = await fetch(`${API_BASE}/api/scrape-instagram`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ handle, brand }),
-      });
-
-      let data;
-      try { data = await res.json(); }
-      catch { data = { detail: `Server error (HTTP ${res.status}). Check that the service is running and APIFY_API_KEY is set.` }; }
-
-      if (!res.ok) {
-        showStatus(data.detail || "Couldn't fetch posts from Instagram.", 'error');
-        document.getElementById('instagram-emptyState').style.display = 'block';
-        setLoading(btn, false, 'Get Posts'); return;
-      }
-
-      handleScrapeResponse(data, 'instagram-emptyState', 'instagram-driveLinkBar', 'instagram-driveLinkAnchor', 'instagram-grid');
-    } catch (err) {
-      showStatus('Could not reach the server. Please check your connection and try again.', 'error');
-      document.getElementById('instagram-emptyState').style.display = 'block';
-    }
-    setLoading(btn, false, 'Get Posts');
-  }
-
-  // ── Get Vendor Data (vendor tab) ──
-  async function getVendorData() {
-    const btn = document.getElementById('getVendorBtn');
-    setLoading(btn, true, 'Loading…');
-    showStatus('Reading sheet data…', 'info', true);
-    document.getElementById('vendor-emptyState').style.display = 'none';
-    document.getElementById('vendor-grid').innerHTML = '';
-    S().selectedAssets.clear();
-    updateActionBar();
-
-    try {
-      const res = await fetch(`${API_BASE}/api/read-sheet`);
-
-      let data;
-      try { data = await res.json(); }
-      catch { data = { detail: `Server error (HTTP ${res.status}).` }; }
-
-      if (!res.ok) {
-        showStatus(data.detail || "Couldn't read the sheet.", 'error');
-        document.getElementById('vendor-emptyState').style.display = 'block';
-        setLoading(btn, false, 'Get Data'); return;
-      }
-
-      S().productState = (data.products || []).map(p => ({
-        ...p,
-        assets:  p.assets.map(a => ({ ...a })),
-        level_1: p.level_1 || '', level_2: p.level_2 || '',
-        level_3: p.level_3 || '', level_4: p.level_4 || '', level_5: p.level_5 || '',
-      }));
-      S().selectedAssets.clear();
-      showStatus(
-        `Loaded ${data.count} product${data.count !== 1 ? 's' : ''} from the sheet. Click images to preview, use ✓ to select.`,
-        'success'
-      );
-      document.getElementById('vendor-grid-bulkBar').style.display = data.count ? 'flex' : 'none';
-      renderGrid('vendor-grid');
-      updateActionBar();
-    } catch (err) {
-      showStatus('Could not reach the server. Please try again.', 'error');
-      document.getElementById('vendor-emptyState').style.display = 'block';
-    }
-    setLoading(btn, false, 'Get Data');
   }
 
   // ── Render Grid ──
@@ -1639,17 +1220,9 @@
     S().productState.forEach((_, pIdx) => validateLevels(pIdx));
   }
 
-  // ── Push to Storage ──
+  // ── Push to Storage (admin results only) ──
   async function pushToStorage() {
-    const brand = activeTab === 'drive'
-      ? document.getElementById('driveBrandInput').value.trim()
-      : activeTab === 'instagram'
-        ? document.getElementById('igBrandInput').value.trim()
-        : activeTab === 'vendor'
-          ? ''   // vendor brand comes per-product from the sheet
-          : activeTab === 'admin'
-            ? adminCurrentVendorBrand
-            : document.getElementById('brandInput').value.trim();
+    const brand = adminCurrentVendorBrand;
     const selectedProducts = S().productState
       .map((prod, pIdx) => {
         const sel = prod.assets.filter((_, ai) => S().selectedAssets.get(`${pIdx}_${ai}`));
@@ -1681,62 +1254,6 @@
     }
 
     setLoading(btn, false, 'Approve');
-  }
-
-  // ── Push to Instagram ──
-  async function pushToInstagram() {
-    const selectedProducts = S().productState
-      .map((prod, pIdx) => {
-        const sel = prod.assets.filter((a, ai) =>
-          S().selectedAssets.get(`${pIdx}_${ai}`) && a.type !== 'video'
-        );
-        if (!sel.length) return null;
-        return {
-          product_name: prod.product_name,
-          price: prod.price,
-          product_description: prod.product_description,
-          brand: prod.brand || document.getElementById('igBrandInput').value.trim(),
-          assets: sel,
-          level_1: prod.level_1 || '', level_2: prod.level_2 || '',
-          level_3: prod.level_3 || '', level_4: prod.level_4 || '',
-          level_5: prod.level_5 || '',
-        };
-      }).filter(Boolean);
-
-    if (!selectedProducts.length) {
-      showStatus('Select at least one image asset first.', 'error');
-      return;
-    }
-
-    const btn = document.getElementById('igPushBtn');
-    setLoading(btn, true, 'Posting…');
-    showStatus('Posting to Instagram… this may take a moment.', 'info', true);
-
-    try {
-      const res = await fetch(`${API_BASE}/api/push-to-instagram`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          products: selectedProducts,
-          brand: document.getElementById('igBrandInput').value.trim(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showStatus(data.detail || 'Push to Instagram failed.', 'error');
-        setLoading(btn, false, 'Push to Instagram');
-        return;
-      }
-      const errs = (data.errors || []).length;
-      let msg = `Done! ${data.post_count} post${data.post_count !== 1 ? 's' : ''} published to Instagram.`;
-      if (errs) msg += ` (${errs} error${errs !== 1 ? 's' : ''} — see console)`;
-      showStatus(msg, data.post_count > 0 ? 'success' : 'error');
-      if (data.errors && data.errors.length) console.warn('[Instagram push errors]', data.errors);
-    } catch (err) {
-      showStatus(`Network error: ${err.message}`, 'error');
-    }
-
-    setLoading(btn, false, 'Push to Instagram');
   }
 
   // ── Result modal ──
@@ -1773,19 +1290,6 @@
   function escAttr(s) {
     return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
-
-  ['urlInput','brandInput'].forEach(id =>
-    document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') getProducts(); })
-  );
-  ['driveUrlInput','driveBrandInput'].forEach(id =>
-    document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') getDriveFiles(); })
-  );
-  ['igHandleInput','igBrandInput'].forEach(id =>
-    document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') getInstagramPosts(); })
-  );
-  ['vendorSheetInput','vendorBrandInput'].forEach(id =>
-    document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') getVendorData(); })
-  );
 
   // ══════════════════════════════════════════════════════════════
   // Admin panel functions
@@ -2003,7 +1507,7 @@
     }
 
     const scrollWrap = document.createElement('div');
-    scrollWrap.style.cssText = 'overflow-x:auto;padding-bottom:140px';
+    scrollWrap.style.cssText = 'overflow-x:auto;padding-bottom:40px';
 
     const table = document.createElement('table');
     table.className = 'admin-table';
@@ -2011,16 +1515,15 @@
       <thead>
         <tr>
           <th>Brand</th>
-          <th>Store URL</th>
-          <th>Plan</th>
-          <th>API Auth</th>
-          <th>Status</th>
           <th>Contact</th>
           <th>Categories</th>
+          <th>Source</th>
+          <th>Status</th>
           <th>Submitted</th>
           <th>Last Pulled</th>
           <th>Notes</th>
-          <th>Actions</th>
+          <th>Pull Products</th>
+          <th>View</th>
         </tr>
       </thead>
       <tbody id="admin-tbody"></tbody>
@@ -2035,49 +1538,63 @@
       const tr = document.createElement('tr');
       tr.id = `vendor-row-${v.id}`;
 
-      // Auth badge
-      let authBadge;
-      if (v.admin_token) {
-        authBadge = `<span class="auth-badge admin-api">✓ Admin API</span>`;
-      } else if (v.storefront_token) {
-        authBadge = `<span class="auth-badge storefront">⚡ Storefront</span>`;
-      } else {
-        authBadge = `<span class="auth-badge public-only">○ Public</span>`;
-      }
-
-      const storeDisplay = (v.store_url || '').replace(/^https?:\/\//, '');
-      const storeHref    = v.store_url ? (v.store_url.startsWith('http') ? v.store_url : `https://${v.store_url}`) : '#';
-
       const statusOptions = ['pending', 'active', 'suspended']
         .map(s => `<option value="${s}"${v.status === s ? ' selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`)
         .join('');
 
-      const cats = Array.isArray(v.categories) ? v.categories.slice(0, 3).join(', ') + (v.categories.length > 3 ? '…' : '') : '—';
+      const cats = Array.isArray(v.categories) ? v.categories.slice(0, 2).join(', ') + (v.categories.length > 2 ? '…' : '') : '—';
+
+      // Auth / source badge
+      let sourceBadge;
+      if (v.admin_token) {
+        sourceBadge = `<span class="auth-badge admin-api">✓ Shopify Admin</span>`;
+      } else if (v.store_url) {
+        sourceBadge = `<span class="auth-badge storefront">⚡ Shopify Public</span>`;
+      } else if (v.catalogue_source === 'drive') {
+        sourceBadge = `<span class="auth-badge" style="background:#e8f0fe;color:#1967d2">📁 Drive</span>`;
+      } else if (v.catalogue_source === 'csv') {
+        sourceBadge = `<span class="auth-badge" style="background:#fef3e2;color:#e67e22">📄 CSV</span>`;
+      } else {
+        sourceBadge = `<span class="auth-badge public-only">○ No source</span>`;
+      }
+
+      // Build source action buttons
+      const srcBtns = [];
+      if (v.store_url) {
+        const lbl = v.admin_token ? '🛍️ Shopify (Admin)' : '🛍️ Shopify';
+        srcBtns.push(`<button class="src-btn shopify" id="pull-btn-${escAttr(v.id)}"
+          onclick="pullVendorProducts('${escAttr(v.id)}')">${escHtml(lbl)}</button>`);
+      }
+      if (v.drive_url) {
+        srcBtns.push(`<button class="src-btn drive"
+          onclick="pullVendorDrive('${escAttr(v.id)}')">📁 Drive</button>`);
+      }
+      if (v.catalogue_source === 'csv') {
+        srcBtns.push(`<button class="src-btn csv"
+          onclick="triggerCsvUpload('${escAttr(v.id)}')">📄 CSV</button>`);
+      }
+      if (!srcBtns.length) {
+        srcBtns.push(`<span style="font-size:.76rem;color:var(--muted)">—</span>`);
+      }
 
       tr.innerHTML = `
         <td>
-          <div style="font-weight:600;color:var(--text);white-space:nowrap">${escHtml(v.brand_name || '—')}</div>
+          <div style="font-weight:700;color:var(--text);white-space:nowrap">${escHtml(v.brand_name || '—')}</div>
+          ${v.full_legal_name ? `<div style="font-size:.72rem;color:var(--muted)">${escHtml(v.full_legal_name)}</div>` : ''}
           <span class="vendor-id-badge">${escHtml(v.id)}</span>
         </td>
-        <td style="max-width:180px">
-          ${storeDisplay
-            ? `<a href="${escAttr(storeHref)}" target="_blank" style="color:var(--accent);font-size:.82rem;text-decoration:none;word-break:break-all" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${escHtml(storeDisplay)}</a>`
-            : '<span style="color:var(--muted)">—</span>'}
+        <td style="font-size:.82rem;color:var(--muted)">
+          ${escHtml(v.contact_name || '—')}
+          ${v.contact_email ? `<br><a href="mailto:${escAttr(v.contact_email)}" style="color:var(--accent);font-size:.75rem">${escHtml(v.contact_email)}</a>` : ''}
+          ${v.contact_phone ? `<br><span style="font-size:.75rem">${escHtml(v.contact_phone)}</span>` : ''}
         </td>
-        <td>
-          ${v.plan ? `<span style="font-size:.75rem;background:var(--bg);border:1px solid var(--border);padding:2px 7px;border-radius:4px;white-space:nowrap">${escHtml(v.plan)}</span>` : '<span style="color:var(--muted)">—</span>'}
-        </td>
-        <td>${authBadge}</td>
+        <td style="font-size:.79rem;color:var(--muted);max-width:130px">${escHtml(cats || '—')}</td>
+        <td>${sourceBadge}</td>
         <td>
           <select class="status-select" onchange="updateVendorStatus('${escAttr(v.id)}', this.value)">
             ${statusOptions}
           </select>
         </td>
-        <td style="font-size:.82rem;color:var(--muted);white-space:nowrap">
-          ${escHtml(v.contact_email || '—')}
-          ${v.contact_name ? `<br><span style="font-size:.75rem">${escHtml(v.contact_name)}</span>` : ''}
-        </td>
-        <td style="font-size:.79rem;color:var(--muted);max-width:140px">${escHtml(cats || '—')}</td>
         <td style="font-size:.82rem;color:var(--muted);white-space:nowrap">${fmtDate(v.submitted_at)}</td>
         <td style="font-size:.82rem;color:var(--muted);white-space:nowrap" id="last-pulled-${escAttr(v.id)}">${fmtDate(v.last_pulled_at)}</td>
         <td>
@@ -2086,16 +1603,11 @@
             onkeydown="if(event.key==='Enter'){this.blur()}" />
         </td>
         <td>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">
-            <button class="pull-btn" id="pull-btn-${escAttr(v.id)}"
-              onclick="pullVendorProducts('${escAttr(v.id)}')">
-              Pull Products
-            </button>
-            <button class="view-results-btn" id="view-results-${escAttr(v.id)}" style="display:none"
-              onclick="showStoredResults('${escAttr(v.id)}')">
-              View Results
-            </button>
-          </div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">${srcBtns.join('')}</div>
+        </td>
+        <td>
+          <button class="view-results-btn" id="view-results-${escAttr(v.id)}" style="display:none"
+            onclick="showStoredResults('${escAttr(v.id)}')">View</button>
         </td>
       `;
       tbody.appendChild(tr);
@@ -2264,13 +1776,105 @@
     updateActionBar();
   }
 
+  // ── Drive pull (pre-filled from vendor record) ──────────────────
+  async function pullVendorDrive(vendorId) {
+    const vendor = adminVendors.find(v => v.id === vendorId);
+    if (!vendor || !vendor.drive_url) { showAdminStatus('No Drive URL configured for this vendor.', 'error'); return; }
+    adminCurrentVendorBrand = vendor.brand_name || vendorId;
+    showAdminStatus(`Downloading Drive files for ${adminCurrentVendorBrand}…`, 'info', true);
+    try {
+      const res  = await fetch(`${API_BASE}/api/scrape-drive`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: vendor.drive_url, brand: adminCurrentVendorBrand }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showAdminStatus(data.detail || 'Drive pull failed.', 'error'); return; }
+      const result = { products: data.products || [], platform: 'google_drive', count: data.count || 0, drive_folder_url: data.drive_folder_url };
+      adminStoredResults[vendorId] = result;
+      const lpCell = document.getElementById(`last-pulled-${vendorId}`);
+      if (lpCell) lpCell.textContent = fmtDate(new Date().toISOString());
+      document.getElementById(`view-results-${vendorId}`)?.style && (document.getElementById(`view-results-${vendorId}`).style.display = 'inline-flex');
+      showAdminStatus(`Pulled ${result.count} files for ${adminCurrentVendorBrand}.`, 'success');
+      showAdminProductResults(vendorId, result);
+    } catch (err) {
+      showAdminStatus(`Network error: ${err.message}`, 'error');
+    }
+  }
+
+  // ── CSV upload (admin uploads on vendor's behalf) ────────────────
+  function triggerCsvUpload(vendorId) {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = '.csv,text/csv';
+    input.onchange = e => handleCsvFile(vendorId, e.target.files[0]);
+    input.click();
+  }
+
+  function handleCsvFile(vendorId, file) {
+    if (!file) return;
+    const vendor = adminVendors.find(v => v.id === vendorId);
+    adminCurrentVendorBrand = vendor ? (vendor.brand_name || vendorId) : vendorId;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const products = parseCsvText(e.target.result, vendor);
+        if (!products.length) { showAdminStatus('No products found in CSV. Check the file has a product_name column.', 'error'); return; }
+        const result = { products, platform: 'csv', count: products.length };
+        adminStoredResults[vendorId] = result;
+        document.getElementById(`view-results-${vendorId}`)?.style && (document.getElementById(`view-results-${vendorId}`).style.display = 'inline-flex');
+        showAdminStatus(`Parsed ${products.length} products from CSV for ${adminCurrentVendorBrand}.`, 'success');
+        showAdminProductResults(vendorId, result);
+      } catch (err) {
+        showAdminStatus(`CSV parse error: ${err.message}`, 'error');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function parseCsvText(text, vendor) {
+    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
+    if (lines.length < 2) return [];
+    const headers = splitCsvLine(lines[0]).map(h => h.toLowerCase().replace(/"/g, '').trim());
+    const products = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = splitCsvLine(lines[i]);
+      const row  = {};
+      headers.forEach((h, idx) => { row[h] = (cols[idx] || '').replace(/^"|"$/g, '').trim(); });
+      const name = row.product_name || row.name || row.title || '';
+      if (!name) continue;
+      const assets = [];
+      for (let j = 1; j <= 4; j++) {
+        const url = row[`asset_${j}_url`] || row[`image_${j}`] || '';
+        if (url) assets.push({ url, type: 'image' });
+      }
+      products.push({
+        product_name:        name,
+        price:               row.price || '0',
+        product_description: row.description || row.product_description || '',
+        brand:               (vendor && vendor.brand_name) || '',
+        assets,
+        level_1: '', level_2: '', level_3: '', level_4: '', level_5: '',
+      });
+    }
+    return products;
+  }
+
+  function splitCsvLine(line) {
+    const cols = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') { inQ = !inQ; continue; }
+      if (line[i] === ',' && !inQ) { cols.push(cur); cur = ''; continue; }
+      cur += line[i];
+    }
+    cols.push(cur); return cols;
+  }
+
   let _adminLoaded = false;
 </script>
 
 <script type="text/babel">
-// ════════════════════════════════════════════════════════════════
-// VENDOR REGISTRATION — React component
-// ════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// VENDOR REGISTRATION — 6-stage React wizard
+// ═══════════════════════════════════════════════════════════════
 const { useState, useCallback, useRef } = React;
 
 // ─── Design tokens (TGC theme) ──────────────────────────────────
@@ -2469,66 +2073,17 @@ function PlatformBadge({ result, detecting }) {
   );
 }
 
-// ─── Stage 1: Store Info ─────────────────────────────────────────
-function StoreInfoStage({ data, update }) {
-  const [detecting, setDetecting]         = useState(false);
-  const [platformResult, setPlatformResult] = useState(null);
-  const lastUrl = useRef("");
-
-  const handleUrlBlur = () => {
-    const url = (data.storeUrl || "").trim();
-    if (!url || url === lastUrl.current || url.length < 5) return;
-    lastUrl.current = url;
-    setDetecting(true);
-    setPlatformResult(null);
-    setTimeout(() => {
-      setDetecting(false);
-      setPlatformResult(detectPlatformLocally(url));
-    }, 350);
-  };
-
-  const isShopify  = platformResult?.isShopify === true;
-  const notShopify = !!(platformResult?.detected && !platformResult.isShopify);
+// ─── Stage 1: Brand & Contact ────────────────────────────────────
+function BrandContactStage({ data, update }) {
+  const CATS = ["Candles & Diffusers","Home Décor","Jewellery","Skincare & Beauty",
+    "Food & Gourmet","Stationery","Toys & Kids","Clothing & Accessories",
+    "Art & Prints","Wellness","Hampers & Gift Sets","Other"];
+  const active = data.categories || [];
+  const toggle = cat => update("categories", active.includes(cat) ? active.filter(c=>c!==cat) : [...active, cat]);
 
   return (
     <>
-      <Card title="Brand Identity" subtitle="How your store appears on The Gift Collective">
-        <Row2>
-          <Fld><Lbl required>Brand / Business Name</Lbl>
-            <Inp value={data.brandName} onChange={v=>update("brandName",v)} placeholder="e.g. Sarah's Ceramics" /></Fld>
-          <Fld><Lbl>Currency</Lbl>
-            <Inp value="INR — Indian Rupee" onChange={()=>{}} disabled /></Fld>
-        </Row2>
-        {!notShopify && (
-          <Row2>
-            <Fld><Lbl required>Shopify Plan</Lbl>
-              <Sel value={data.plan} onChange={v=>update("plan",v)} options={[
-                {v:"",l:"Select plan…"},{v:"basic",l:"Basic ($39/mo)"},{v:"shopify",l:"Shopify ($105/mo)"},
-                {v:"advanced",l:"Advanced ($399/mo)"},{v:"plus",l:"Plus ($2,500/mo)"}]} /></Fld>
-            <Fld />
-          </Row2>
-        )}
-        <Fld><Lbl optional>Store Logo URL</Lbl>
-          <Inp value={data.logoUrl} onChange={v=>update("logoUrl",v)} placeholder="https://..." isMono /></Fld>
-        <Fld>
-          <Lbl required>Store URL</Lbl>
-          <Inp value={data.storeUrl}
-            onChange={v=>{ update("storeUrl",v); setPlatformResult(null); lastUrl.current=""; }}
-            onBlur={handleUrlBlur}
-            placeholder="yourstore.myshopify.com" isMono />
-          <Err msg={data.storeUrl && !data.storeUrl.includes(".") ? "Enter full domain, e.g. store.myshopify.com" : null} />
-          <PlatformBadge result={platformResult} detecting={detecting} />
-        </Fld>
-        {notShopify && (
-          <div style={{ background:VT.redBg, border:`1px solid ${VT.red}33`, borderRadius:7, padding:"12px 14px" }}>
-            <p style={{ fontSize:13, fontWeight:700, color:VT.red, margin:"0 0 4px" }}>Alternative Onboarding Required</p>
-            <p style={{ fontSize:12, color:VT.ink, lineHeight:1.6, margin:0 }}>
-              TGC currently supports Shopify stores only. Please <strong>contact our team</strong> and we'll walk you through an alternative onboarding path.
-            </p>
-          </div>
-        )}
-      </Card>
-      <Card title="Contact Details" subtitle="Primary contact for orders and support">
+      <Card title="Contact Information" subtitle="Primary contact for orders and support">
         <Row2>
           <Fld><Lbl required>Contact Name</Lbl>
             <Inp value={data.contactName} onChange={v=>update("contactName",v)} placeholder="Full name" /></Fld>
@@ -2542,75 +2097,134 @@ function StoreInfoStage({ data, update }) {
             <Inp value={data.notifyEmail} onChange={v=>update("notifyEmail",v)} placeholder="orders@store.com" type="email" /></Fld>
         </Row2>
       </Card>
+      <Card title="Brand Identity" subtitle="How your brand appears on The Gift Collective">
+        <Row2>
+          <Fld><Lbl required>Brand Name</Lbl>
+            <Inp value={data.brandName} onChange={v=>update("brandName",v)} placeholder="e.g. Sarah's Ceramics" /></Fld>
+          <Fld><Lbl required>Full Legal Business Name</Lbl>
+            <Inp value={data.fullLegalName} onChange={v=>update("fullLegalName",v)} placeholder="e.g. Sarah Jane Pottery Pvt Ltd" /></Fld>
+        </Row2>
+        <Fld><Lbl optional>Logo URL</Lbl>
+          <Inp value={data.logoUrl} onChange={v=>update("logoUrl",v)} placeholder="https://cdn.yourstore.com/logo.png" isMono /></Fld>
+      </Card>
+      <Card title="Product Categories" subtitle="Select all that apply — minimum one required">
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+          {CATS.map(cat => {
+            const on = active.includes(cat);
+            return (
+              <div key={cat} onClick={()=>toggle(cat)}
+                style={{ padding:"9px 12px", borderRadius:6, cursor:"pointer",
+                  background:on?VT.accentBg:VT.surfaceAlt, border:`1.5px solid ${on?VT.accent:VT.border}`,
+                  transition:"all 0.15s", display:"flex", alignItems:"center", gap:7 }}>
+                <div style={{ width:13, height:13, borderRadius:3, flexShrink:0,
+                  background:on?VT.accent:VT.surface, border:`2px solid ${on?VT.accent:VT.borderDark}`,
+                  display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {on && <span style={{ fontSize:8, color:"#fff", fontWeight:900 }}>✓</span>}
+                </div>
+                <span style={{ fontSize:12, color:on?VT.accent:VT.ink, fontWeight:on?700:400 }}>{cat}</span>
+              </div>
+            );
+          })}
+        </div>
+        {active.length===0 && <p style={{ marginTop:10, fontSize:11, color:VT.red }}>Select at least one category.</p>}
+      </Card>
     </>
   );
 }
 
-// ─── Stage 2: Tax & Compliance ───────────────────────────────────
-function TaxStage({ data, update }) {
+// ─── Stage 2: Business & Compliance ─────────────────────────────
+function BusinessComplianceStage({ data, update }) {
   const panVal = (data.pan||"").toUpperCase();
   const gstVal = (data.gst||"").toUpperCase();
   const panOk  = validatePAN(panVal);
   const gstOk  = validateGST(gstVal);
   return (
-    <Card title="Tax & Compliance" subtitle="Required for payouts and compliance">
-      <div style={{ background:VT.amberBg, border:`1px solid ${VT.amber}44`, borderRadius:7, padding:"11px 13px", marginBottom:18 }}>
-        <p style={{ fontSize:12, color:VT.amber, lineHeight:1.6, margin:0 }}>
-          <strong>Why do we need this?</strong> PAN is required for any payout exceeding ₹20,000. GST is needed if you are a GST-registered business.
-        </p>
-      </div>
-      <Fld>
-        <Lbl required>PAN Number</Lbl>
-        <Inp value={panVal} onChange={v=>update("pan",v.toUpperCase())} placeholder="ABCDE1234F" isMono error={panVal && !panOk} />
-        {panVal && !panOk && <Err msg="PAN format: 5 letters, 4 digits, 1 letter — e.g. ABCDE1234F" />}
-        {panOk && <p style={{ marginTop:3, fontSize:11, color:VT.green, margin:"3px 0 0" }}>✓ Valid PAN format</p>}
-        <Guide title="Where do I find my PAN?" steps={[
-          "Your PAN is printed on your <strong>PAN card</strong> issued by the Income Tax Department.",
-          "If you're a business, use your <strong>company's PAN</strong> (not individual).",
-          "Enter exactly as shown — 10 characters, all caps, format: AAAAA9999A.",
-        ]} />
-      </Fld>
-      <Fld>
-        <Lbl optional>GST Number</Lbl>
-        <Inp value={gstVal} onChange={v=>update("gst",v.toUpperCase())} placeholder="22AAAAA0000A1Z5" isMono error={gstVal && !gstOk} />
-        {gstVal && !gstOk && <Err msg="GST format: 15 characters — e.g. 22AAAAA0000A1Z5" />}
-        {gstVal && gstOk && <p style={{ marginTop:3, fontSize:11, color:VT.green, margin:"3px 0 0" }}>✓ Valid GST format</p>}
-        <p style={{ marginTop:4, fontSize:11, color:VT.inkLight, margin:"4px 0 0" }}>Required only if your annual turnover exceeds ₹40 lakhs or you've voluntarily registered for GST.</p>
-      </Fld>
-      <Fld>
-        <Lbl optional>Business Type</Lbl>
-        <Sel value={data.businessType||""} onChange={v=>update("businessType",v)} options={[
-          {v:"",l:"Select…"},{v:"sole_proprietor",l:"Sole Proprietor"},{v:"partnership",l:"Partnership Firm"},
-          {v:"pvt_ltd",l:"Private Limited Company"},{v:"llp",l:"LLP"},{v:"individual",l:"Individual"}]} />
-      </Fld>
-    </Card>
+    <>
+      <Card title="Billing Address" subtitle="Registered address of your business">
+        <Fld><Lbl required>Street / Building</Lbl>
+          <Inp value={data.billingStreet} onChange={v=>update("billingStreet",v)} placeholder="e.g. 12 Park Street, 3rd Floor" /></Fld>
+        <Row2>
+          <Fld><Lbl required>City</Lbl>
+            <Inp value={data.billingCity} onChange={v=>update("billingCity",v)} placeholder="e.g. Mumbai" /></Fld>
+          <Fld><Lbl required>State</Lbl>
+            <Inp value={data.billingState} onChange={v=>update("billingState",v)} placeholder="e.g. Maharashtra" /></Fld>
+        </Row2>
+        <Row2>
+          <Fld><Lbl required>PIN Code</Lbl>
+            <Inp value={data.billingPin} onChange={v=>update("billingPin",v)} placeholder="e.g. 400001" isMono /></Fld>
+          <Fld><Lbl>Country</Lbl>
+            <Inp value={data.billingCountry||"India"} onChange={v=>update("billingCountry",v)} placeholder="India" /></Fld>
+        </Row2>
+      </Card>
+      <Card title="Tax & Compliance" subtitle="Required for payouts and legal compliance">
+        <div style={{ background:VT.amberBg, border:`1px solid ${VT.amber}44`, borderRadius:7, padding:"11px 13px", marginBottom:18 }}>
+          <p style={{ fontSize:12, color:VT.amber, lineHeight:1.6, margin:0 }}>
+            <strong>Why do we need this?</strong> PAN is required for any payout exceeding ₹20,000. GST is needed if you are GST-registered.
+          </p>
+        </div>
+        <Row2>
+          <Fld>
+            <Lbl required>PAN Number</Lbl>
+            <Inp value={panVal} onChange={v=>update("pan",v.toUpperCase())} placeholder="ABCDE1234F" isMono error={panVal && !panOk} />
+            {panVal && !panOk && <Err msg="Format: 5 letters · 4 digits · 1 letter — e.g. ABCDE1234F" />}
+            {panOk && <p style={{ marginTop:3, fontSize:11, color:VT.green, margin:"3px 0 0" }}>✓ Valid PAN format</p>}
+          </Fld>
+          <Fld>
+            <Lbl optional>GST Number</Lbl>
+            <Inp value={gstVal} onChange={v=>update("gst",v.toUpperCase())} placeholder="22AAAAA0000A1Z5" isMono error={gstVal && !gstOk} />
+            {gstVal && !gstOk && <Err msg="GST: 15 characters — e.g. 22AAAAA0000A1Z5" />}
+            {gstVal && gstOk && <p style={{ marginTop:3, fontSize:11, color:VT.green, margin:"3px 0 0" }}>✓ Valid GST format</p>}
+          </Fld>
+        </Row2>
+        <Fld><Lbl optional>Business Type</Lbl>
+          <Sel value={data.businessType||""} onChange={v=>update("businessType",v)} options={[
+            {v:"",l:"Select…"},{v:"sole_proprietor",l:"Sole Proprietor"},{v:"partnership",l:"Partnership Firm"},
+            {v:"pvt_ltd",l:"Private Limited Company"},{v:"llp",l:"LLP"},{v:"individual",l:"Individual"}]} />
+        </Fld>
+      </Card>
+    </>
   );
 }
 
-// ─── Stage 3: Shopify Setup ──────────────────────────────────────
-function ShopifyStage({ data, update }) {
-  const [results, setResults] = useState({});
+// ─── Stage 4: Store & Catalogue ─────────────────────────────────
+function StoreCatalogueStage({ data, update }) {
+  const [detecting, setDetecting]         = useState(false);
+  const [platformResult, setPlatformResult] = useState(null);
+  const [tokenResults, setTokenResults]   = useState({});
+  const lastUrl = useRef("");
 
-  const verify = (field, tokenType) => {
-    setResults(r => ({ ...r, [field]: verifyTokenLocally({ tokenType, token:data[field], storeUrl:data.storeUrl }) }));
+  const handleUrlBlur = () => {
+    const url = (data.storeUrl || "").trim();
+    if (!url || url === lastUrl.current || url.length < 4) return;
+    lastUrl.current = url;
+    setDetecting(true); setPlatformResult(null);
+    setTimeout(() => { setDetecting(false); setPlatformResult(detectPlatformLocally(url)); }, 350);
   };
 
-  const renderTokenField = (field, tokenType, label, placeholder, guide) => {
-    const result = results[field];
-    const statusColor = !result ? VT.inkMid : result.status==="ok" ? VT.green : VT.red;
+  const isShopify  = platformResult?.isShopify === true ||
+    ((data.storeUrl||"").toLowerCase().includes(".myshopify.com") && !platformResult);
+  const detectedNotShopify = !!(platformResult?.detected && !platformResult.isShopify);
+
+  const verifyToken = (field, tokenType) => {
+    setTokenResults(r => ({ ...r, [field]: verifyTokenLocally({ tokenType, token:data[field], storeUrl:data.storeUrl }) }));
+  };
+
+  const TokenField = ({ field, tokenType, label, placeholder, guide }) => {
+    const result = tokenResults[field];
+    const sc = !result ? VT.inkMid : result.status==="ok" ? VT.green : VT.red;
     return (
-      <Fld key={field}>
-        <Lbl required>{label}</Lbl>
+      <Fld>
+        <Lbl required={tokenType !== "storefront"}>{label}</Lbl>
         <div style={{ display:"flex", gap:7 }}>
           <div style={{ flex:1 }}>
-            <Inp value={data[field]} onChange={v=>{ update(field,v); setResults(r=>({...r,[field]:null})); }}
+            <Inp value={data[field]} onChange={v=>{ update(field,v); setTokenResults(r=>({...r,[field]:null})); }}
               placeholder={placeholder} isMono error={result?.status==="fail"} />
           </div>
-          <button onClick={()=>verify(field, tokenType)} disabled={!data[field]}
+          <button onClick={()=>verifyToken(field, tokenType)} disabled={!data[field]}
             style={{ padding:"0 13px", borderRadius:6, border:`1.5px solid ${VT.border}`,
               background:result?(result.status==="ok"?VT.greenBg:VT.redBg):VT.surfaceAlt,
-              color:statusColor, fontWeight:700, fontSize:11, cursor:!data[field]?"not-allowed":"pointer",
-              whiteSpace:"nowrap", fontFamily:mono, minWidth:70, opacity:!data[field]?0.5:1, transition:"all 0.2s" }}>
+              color:sc, fontWeight:700, fontSize:11, cursor:!data[field]?"not-allowed":"pointer",
+              whiteSpace:"nowrap", fontFamily:mono, minWidth:70, opacity:!data[field]?0.5:1 }}>
             {result?.status==="ok" ? "✓ OK" : result?.status==="fail" ? "✗ FAIL" : "VERIFY"}
           </button>
         </div>
@@ -2630,51 +2244,117 @@ function ShopifyStage({ data, update }) {
     );
   };
 
+  const UPLOAD_METHODS = [
+    { v:"drive",   icon:"📁", label:"Google Drive",  sub:"Share a Drive folder with your product images" },
+    { v:"csv",     icon:"📄", label:"CSV Upload",    sub:"Upload a spreadsheet with product details and image URLs" },
+    { v:"website", icon:"🌐", label:"Website",       sub:"We detect your platform — no scraping for non-Shopify" },
+    { v:"instagram", icon:"📸", label:"Instagram",   sub:"Coming soon", disabled:true },
+    { v:"whatsapp",  icon:"💬", label:"WhatsApp",    sub:"Coming soon", disabled:true },
+  ];
+
   return (
     <>
-      <div style={{ background:VT.amberBg, border:`1px solid ${VT.amber}33`, borderRadius:7, padding:"11px 13px", marginBottom:12 }}>
-        <p style={{ fontSize:12, color:VT.amber, lineHeight:1.6, margin:0 }}>
-          <strong>Don't worry if this looks technical.</strong> Click <em>"How to get your…"</em> below each field for step-by-step instructions.
-        </p>
-      </div>
-      {!data.storeUrl && (
-        <div style={{ background:VT.redBg, border:`1px solid ${VT.red}33`, borderRadius:7, padding:"9px 13px", marginBottom:12 }}>
-          <p style={{ fontSize:12, color:VT.red, margin:0 }}>⚠️ <strong>Store URL missing.</strong> Go back to Stage 1 and enter your Shopify URL first.</p>
-        </div>
-      )}
-      <Card title="Shopify API Tokens" subtitle="Needed to read your products and receive orders">
-        {renderTokenField("storefrontToken","storefront","Storefront API Token","shpat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",[
-          `Log in to <strong>yourstore.myshopify.com/admin</strong>`,
-          `Click <strong>Settings → Apps and sales channels → Develop apps</strong>`,
-          `Click <strong>"Create an app"</strong> — name it <em>The Gift Collective</em>`,
-          `Click <strong>"Configure Storefront API scopes"</strong> — tick: Read products, Read product listings, Read inventory`,
-          `Click Save → Install app → <strong>"Reveal token once"</strong> — paste it here immediately`,
-        ])}
-        {renderTokenField("adminToken","admin","Admin API Token","shpat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",[
-          `In the same app, go to the <strong>Configuration</strong> tab`,
-          `Under <strong>"Admin API integration"</strong> click <strong>Edit</strong>`,
-          `Tick: Read orders, Write orders, Read products, Write inventory → Save`,
-          `Go to the <strong>"API credentials"</strong> tab → <strong>"Reveal token once"</strong>`,
-        ])}
-        {renderTokenField("webhookSecret","webhook_secret","API Secret Key (for webhook verification)","shpss_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",[
-          `In your Shopify Partners dashboard open your app → <strong>API credentials</strong>`,
-          `Copy the <strong>API secret key</strong> (not the access token) — it looks like <code>shpss_…</code>`,
-          `For custom apps: Shopify Admin → Settings → Apps → <strong>Develop apps</strong> → your app → API credentials`,
-          `This secret is used by TGC to verify incoming webhook payloads are genuinely from Shopify`,
-        ])}
+      <Card title="Your Store / Website" subtitle="Enter your store URL so we can detect the platform">
         <Fld>
-          <Lbl>API Version</Lbl>
-          <Sel value={data.apiVersion||"2025-04"} onChange={v=>update("apiVersion",v)} options={[
-            {v:"2025-04",l:"2025-04 (Recommended)"},{v:"2025-01",l:"2025-01"},{v:"2024-10",l:"2024-10 (Legacy)"}]} />
-          <p style={{ marginTop:4, fontSize:11, color:VT.inkLight, margin:"4px 0 0" }}>Leave as recommended unless your store requires a specific version.</p>
+          <Lbl>Store / Website URL</Lbl>
+          <Inp value={data.storeUrl||""}
+            onChange={v=>{ update("storeUrl",v); setPlatformResult(null); lastUrl.current=""; }}
+            onBlur={handleUrlBlur}
+            placeholder="yourstore.myshopify.com or www.yoursite.com" isMono />
+          <PlatformBadge result={platformResult} detecting={detecting} />
         </Fld>
+        {(isShopify || (!detectedNotShopify && data.storeUrl)) && (
+          <Fld><Lbl required>Shopify Plan</Lbl>
+            <Sel value={data.plan||""} onChange={v=>update("plan",v)} options={[
+              {v:"",l:"Select plan…"},{v:"basic",l:"Basic ($39/mo)"},{v:"shopify",l:"Shopify ($105/mo)"},
+              {v:"advanced",l:"Advanced ($399/mo)"},{v:"plus",l:"Plus ($2,500/mo)"}]} />
+          </Fld>
+        )}
       </Card>
+
+      {/* Shopify API tokens — shown when URL is a Shopify store */}
+      {isShopify && (
+        <Card title="Shopify API Tokens" subtitle="Needed to sync products and receive order events">
+          <div style={{ background:VT.amberBg, border:`1px solid ${VT.amber}33`, borderRadius:7, padding:"10px 13px", marginBottom:14 }}>
+            <p style={{ fontSize:12, color:VT.amber, lineHeight:1.6, margin:0 }}>
+              <strong>Don't worry if this looks technical.</strong> Click <em>"How to get your…"</em> below each field for step-by-step instructions.
+            </p>
+          </div>
+          <TokenField field="adminToken" tokenType="admin" label="Admin API Token" placeholder="shpat_xxxxxxxxxx" guide={[
+            `Log in to <strong>yourstore.myshopify.com/admin</strong>`,
+            `Click <strong>Settings → Apps and sales channels → Develop apps</strong> → Create an app named <em>The Gift Collective</em>`,
+            `Under <strong>Admin API integration</strong> tick: Read products, Read orders → Save → Install app`,
+            `Click <strong>"Reveal token once"</strong> and paste it here immediately`,
+          ]} />
+          <TokenField field="webhookSecret" tokenType="webhook_secret" label="API Secret Key (webhook verification)" placeholder="shpss_xxxxxxxxxx" guide={[
+            `In Shopify Partners dashboard open your app → <strong>API credentials</strong>`,
+            `Copy the <strong>API secret key</strong> (not the access token)`,
+            `For custom apps: Settings → Apps → Develop apps → your app → API credentials`,
+          ]} />
+          <TokenField field="storefrontToken" tokenType="storefront" label="Storefront API Token (optional)" placeholder="shpat_xxxxxxxxxx" guide={[
+            `Same app → <strong>Configure Storefront API scopes</strong> → tick Read products → Save`,
+            `<strong>Reveal token once</strong> and paste it here`,
+          ]} />
+          <Fld><Lbl>API Version</Lbl>
+            <Sel value={data.apiVersion||"2025-04"} onChange={v=>update("apiVersion",v)} options={[
+              {v:"2025-04",l:"2025-04 (Recommended)"},{v:"2025-01",l:"2025-01"},{v:"2024-10",l:"2024-10 (Legacy)"}]} />
+          </Fld>
+        </Card>
+      )}
+
+      {/* Non-Shopify upload method */}
+      {(detectedNotShopify || !data.storeUrl) && (
+        <Card title="How will you upload your catalogue?" subtitle="Choose the method that works best for you">
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {UPLOAD_METHODS.map(m => {
+              const sel = data.catalogueSource === m.v;
+              return (
+                <div key={m.v} onClick={()=>!m.disabled && update("catalogueSource", m.v)}
+                  style={{ display:"flex", alignItems:"center", gap:14, padding:"13px 16px", borderRadius:8, cursor:m.disabled?"default":"pointer",
+                    background:sel?VT.accentBg:m.disabled?VT.surfaceAlt:VT.surface,
+                    border:`1.5px solid ${sel?VT.accent:VT.border}`,
+                    opacity:m.disabled?0.55:1, transition:"all 0.15s" }}>
+                  <span style={{ fontSize:22 }}>{m.icon}</span>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:sel?VT.accent:VT.ink }}>{m.label}
+                      {m.disabled && <span style={{ marginLeft:7, fontSize:10, background:VT.border, color:VT.inkMid, padding:"2px 7px", borderRadius:10 }}>Coming soon</span>}
+                    </div>
+                    <div style={{ fontSize:11, color:VT.inkMid, marginTop:2 }}>{m.sub}</div>
+                  </div>
+                  <div style={{ width:16, height:16, borderRadius:"50%", border:`2px solid ${sel?VT.accent:VT.borderDark}`, background:sel?VT.accent:"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    {sel && <span style={{ width:6, height:6, borderRadius:"50%", background:"#fff" }} />}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {data.catalogueSource === "drive" && (
+            <div style={{ marginTop:16, padding:"14px 16px", background:VT.accentBg, borderRadius:8, border:`1px solid ${VT.accent}33` }}>
+              <Fld><Lbl required>Google Drive Folder URL</Lbl>
+                <Inp value={data.driveUrl||""} onChange={v=>update("driveUrl",v)} placeholder="https://drive.google.com/drive/folders/..." isMono />
+              </Fld>
+              <p style={{ fontSize:11, color:VT.inkMid, margin:"6px 0 0", lineHeight:1.6 }}>
+                Set folder sharing to <strong>"Anyone with the link can view"</strong> before submitting.
+              </p>
+            </div>
+          )}
+
+          {data.catalogueSource === "csv" && (
+            <div style={{ marginTop:16, padding:"14px 16px", background:VT.accentBg, borderRadius:8, border:`1px solid ${VT.accent}33` }}>
+              <p style={{ fontSize:12, color:VT.ink, margin:"0 0 10px", lineHeight:1.6 }}>
+                Our team will contact you with a CSV template once your registration is approved. The template has columns for: product name, price, description, and up to 4 image URLs.
+              </p>
+            </div>
+          )}
+        </Card>
+      )}
     </>
   );
 }
 
-// ─── Stage 4: Payouts ────────────────────────────────────────────
-function PayoutsStage({ data, update }) {
+// ─── Stage 5: Payments ───────────────────────────────────────────
+function PaymentsStage({ data, update }) {
   const hasPlan = !!data.plan;
   return (
     <>
@@ -2734,57 +2414,6 @@ function PayoutsStage({ data, update }) {
   );
 }
 
-// ─── Stage 5: Catalogue ──────────────────────────────────────────
-function CatalogueStage({ data, update }) {
-  const CATS = ["Candles & Diffusers","Home Décor","Jewellery","Skincare & Beauty",
-    "Food & Gourmet","Stationery","Toys & Kids","Clothing & Accessories",
-    "Art & Prints","Wellness","Hampers & Gift Sets","Other"];
-  const active = data.categories || [];
-  const toggle = cat => update("categories", active.includes(cat) ? active.filter(c=>c!==cat) : [...active, cat]);
-
-  return (
-    <>
-      <Card title="Product Categories" subtitle="Select all that apply to your products">
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
-          {CATS.map(cat => {
-            const on = active.includes(cat);
-            return (
-              <div key={cat} onClick={()=>toggle(cat)}
-                style={{ padding:"9px 12px", borderRadius:6, cursor:"pointer",
-                  background:on?VT.accentBg:VT.surfaceAlt, border:`1.5px solid ${on?VT.accent:VT.border}`,
-                  transition:"all 0.15s", display:"flex", alignItems:"center", gap:7 }}>
-                <div style={{ width:13, height:13, borderRadius:3, flexShrink:0, background:on?VT.accent:VT.surface,
-                  border:`2px solid ${on?VT.accent:VT.borderDark}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  {on && <span style={{ fontSize:8, color:"#fff", fontWeight:900 }}>✓</span>}
-                </div>
-                <span style={{ fontSize:12, color:on?VT.accent:VT.ink, fontWeight:on?700:400 }}>{cat}</span>
-              </div>
-            );
-          })}
-        </div>
-        {active.length===0 && <p style={{ marginTop:10, fontSize:11, color:VT.red }}>Select at least one category.</p>}
-      </Card>
-      <Card title="Catalogue Details" subtitle="Help us understand your product range">
-        <Row2>
-          <Fld><Lbl required>Number of SKUs</Lbl>
-            <Sel value={data.skuCount||""} onChange={v=>update("skuCount",v)} options={[
-              {v:"",l:"Select…"},{v:"1-10",l:"1–10 products"},{v:"11-50",l:"11–50 products"},
-              {v:"51-200",l:"51–200 products"},{v:"200+",l:"200+ products"}]} /></Fld>
-          <Fld><Lbl required>Average Price Range</Lbl>
-            <Sel value={data.priceRange||""} onChange={v=>update("priceRange",v)} options={[
-              {v:"",l:"Select…"},{v:"under-50",l:"Under $50"},{v:"50-150",l:"$50–$150"},
-              {v:"150-500",l:"$150–$500"},{v:"500+",l:"$500+"}]} /></Fld>
-        </Row2>
-        <Fld><Lbl optional>Out-of-stock Behaviour</Lbl>
-          <Sel value={data.oosMode||"hide"} onChange={v=>update("oosMode",v)} options={[
-            {v:"hide",l:"Hide product when out of stock"},{v:"show",l:"Show as 'Out of Stock'"},
-            {v:"preorder",l:"Show with Pre-order option"}]} /></Fld>
-        <Tog value={!!data.acceptsCustomOrders} onChange={v=>update("acceptsCustomOrders",v)}
-          label="I accept custom / personalised orders" />
-      </Card>
-    </>
-  );
-}
 
 // ─── Stage 6: Fulfilment ─────────────────────────────────────────
 const YesNo = ({ value, onChange, label }) => (
@@ -2871,36 +2500,56 @@ function FulfilmentStage({ data, update }) {
   );
 }
 
-// ─── Stage 7: Review & Submit ────────────────────────────────────
+// ─── Stage 6: Review & Submit ────────────────────────────────────
 function ReviewStage({ data, onSubmit }) {
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
+  const isShopify = (data.storeUrl||"").toLowerCase().includes(".myshopify.com") ||
+    data.catalogueSource === "shopify";
+
   const checks = [
-    { label:"Brand name",           ok:!!data.brandName },
-    { label:"Store URL",            ok:!!data.storeUrl && data.storeUrl.includes(".") },
-    { label:"Shopify plan",         ok:!!data.plan },
-    { label:"Contact email",        ok:!!data.contactEmail },
-    { label:"Contact phone",        ok:!!data.contactPhone },
-    { label:"PAN number",           ok:validatePAN(data.pan||"") },
-    { label:"Storefront API token", ok:!!data.storefrontToken },
-    { label:"Admin API token",      ok:!!data.adminToken },
-    { label:"Webhook secret",       ok:!!data.webhookSecret },
-    { label:"Bank details",         ok:!!(data.accountName && data.accountNumber && data.ifsc) },
-    { label:"Product categories",   ok:(data.categories||[]).length>0 },
-    { label:"Shipping region",      ok:!!data.shippingRegion && (data.warehouseCities||[]).length>0 },
+    { label:"Contact name",       ok:!!data.contactName },
+    { label:"Contact email",      ok:!!data.contactEmail },
+    { label:"Brand name",         ok:!!data.brandName },
+    { label:"Full legal name",    ok:!!data.fullLegalName },
+    { label:"Product categories", ok:(data.categories||[]).length>0 },
+    { label:"Billing city & state", ok:!!(data.billingCity && data.billingState) },
+    { label:"PAN number",         ok:validatePAN(data.pan||"") },
+    { label:"Fulfilment setup",   ok:!!data.shippingRegion && (data.warehouseCities||[]).length>0 },
+    ...(isShopify ? [
+      { label:"Shopify plan",       ok:!!data.plan },
+      { label:"Admin API token",    ok:!!data.adminToken },
+      { label:"Webhook secret",     ok:!!data.webhookSecret },
+    ] : [
+      { label:"Catalogue source",   ok:!!(data.catalogueSource) },
+      ...(data.catalogueSource==="drive" ? [{ label:"Drive URL", ok:!!data.driveUrl }] : []),
+    ]),
+    { label:"Bank account details", ok:!!(data.accountName && data.accountNumber && data.ifsc) },
   ];
-  const passed = checks.filter(c=>c.ok).length;
-  const pct = Math.round((passed/checks.length)*100);
-  const canSubmit = pct === 100;
+
+  const passed   = checks.filter(c=>c.ok).length;
+  const pct      = Math.round((passed/checks.length)*100);
+  const allGood  = pct === 100;
+  const canSubmit = allGood && termsAccepted;
+
+  const summaryItems = [
+    ["Vendor ID",    data.vendorId,                             true],
+    ["Brand",        data.brandName||"—",                       false],
+    ["Legal Name",   data.fullLegalName||"—",                   false],
+    ["Contact",      data.contactEmail||"—",                    false],
+    ["Store",        data.storeUrl||"—",                        true],
+    ["Source",       isShopify?"Shopify":(data.catalogueSource||"—"), false],
+    ["PAN",          data.pan||"—",                             true],
+    ["Categories",   (data.categories||[]).slice(0,2).join(", ")||"—", false],
+  ];
 
   return (
     <>
       <Card title="Registration Summary" subtitle="Review all details before submitting">
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
-          {[["Vendor ID",data.vendorId,true],["Brand",data.brandName||"—",false],
-            ["Store URL",data.storeUrl||"—",true],["Contact",data.contactEmail||"—",false],
-            ["PAN",data.pan||"—",true],["Categories",(data.categories||[]).slice(0,2).join(", ")||"—",false]
-          ].map(([k,v,isMono])=>(
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:18 }}>
+          {summaryItems.map(([k,v,isMono])=>(
             <div key={k} style={{ padding:"9px 11px", background:VT.surfaceAlt, borderRadius:5, border:`1px solid ${VT.border}` }}>
-              <p style={{ fontSize:10, color:VT.inkLight, fontFamily:mono, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:2, margin:"0 0 2px" }}>{k}</p>
+              <p style={{ fontSize:10, color:VT.inkLight, fontFamily:mono, textTransform:"uppercase", letterSpacing:"0.05em", margin:"0 0 2px" }}>{k}</p>
               <p style={{ fontSize:12, color:VT.ink, fontFamily:isMono?mono:sans, fontWeight:600, wordBreak:"break-all", margin:0 }}>{v}</p>
             </div>
           ))}
@@ -2909,11 +2558,11 @@ function ReviewStage({ data, onSubmit }) {
         <div style={{ marginBottom:14 }}>
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
             <span style={{ fontSize:12, fontWeight:700 }}>Completion</span>
-            <span style={{ fontSize:14, fontWeight:900, color:canSubmit?VT.green:pct>=70?VT.amber:VT.red }}>{pct}%</span>
+            <span style={{ fontSize:14, fontWeight:900, color:allGood?VT.green:pct>=70?VT.amber:VT.red }}>{pct}%</span>
           </div>
-          <div style={{ height:5, background:VT.border, borderRadius:3 }}>
+          <div style={{ height:6, background:VT.border, borderRadius:3 }}>
             <div style={{ height:"100%", width:`${pct}%`, borderRadius:3, transition:"width 0.4s",
-              background:canSubmit?VT.green:pct>=70?VT.amber:VT.red }} />
+              background:allGood?VT.green:pct>=70?VT.amber:VT.red }} />
           </div>
         </div>
 
@@ -2928,21 +2577,34 @@ function ReviewStage({ data, onSubmit }) {
         </div>
       </Card>
 
+      {/* T&C mandatory checkbox */}
+      <div style={{ background:VT.surface, border:`1.5px solid ${termsAccepted?VT.accent:VT.border}`, borderRadius:9, padding:"16px 18px", marginBottom:16 }}>
+        <label style={{ display:"flex", alignItems:"flex-start", gap:12, cursor:"pointer", userSelect:"none" }}>
+          <input type="checkbox" checked={termsAccepted} onChange={e=>setTermsAccepted(e.target.checked)}
+            style={{ width:18, height:18, marginTop:1, accentColor:VT.accent, flexShrink:0, cursor:"pointer" }} />
+          <span style={{ fontSize:13, color:VT.ink, lineHeight:1.6 }}>
+            I agree to have my products listed and sold on behalf of my business as per the{" "}
+            <a href="#" style={{ color:VT.accent, fontWeight:700 }}>terms and conditions</a> in the vendor agreement.{" "}
+            <span style={{ color:VT.red, fontWeight:700 }}>*</span>
+          </span>
+        </label>
+      </div>
+
       {canSubmit ? (
         <div style={{ background:VT.greenBg, border:`2px solid ${VT.green}44`, borderRadius:10, padding:"22px", textAlign:"center" }}>
           <div style={{ fontSize:40, marginBottom:7 }}>🚀</div>
-          <p style={{ fontWeight:900, fontSize:16, color:VT.green, marginBottom:5, margin:"0 0 5px" }}>Ready to submit!</p>
+          <p style={{ fontWeight:900, fontSize:16, color:VT.green, margin:"0 0 5px" }}>Ready to submit!</p>
           <p style={{ fontSize:12, color:VT.inkMid, marginBottom:18, lineHeight:1.6, margin:"0 0 18px" }}>
-            Your registration will be reviewed by The Gift Collective team. We'll activate your store within 2 business days.
+            Your registration will be reviewed by The Gift Collective team within 2 business days.
           </p>
           <Btn onClick={onSubmit} size="lg">Submit Registration →</Btn>
         </div>
       ) : (
         <div style={{ background:VT.amberBg, border:`1px solid ${VT.amber}44`, borderRadius:9, padding:"14px 18px", textAlign:"center" }}>
-          <p style={{ fontWeight:700, color:VT.amber, marginBottom:3, margin:"0 0 3px" }}>
-            {checks.length-passed} required field{checks.length-passed!==1?"s":""} missing
+          <p style={{ fontWeight:700, color:VT.amber, margin:"0 0 3px" }}>
+            {!allGood ? `${checks.length-passed} required field${checks.length-passed!==1?"s":""} still missing` : "Please accept the terms & conditions above"}
           </p>
-          <p style={{ fontSize:12, color:VT.inkMid, margin:0 }}>Complete all required fields to enable submission.</p>
+          <p style={{ fontSize:12, color:VT.inkMid, margin:0 }}>Complete all steps to enable submission.</p>
         </div>
       )}
     </>
@@ -2951,13 +2613,12 @@ function ReviewStage({ data, onSubmit }) {
 
 // ─── Stage definitions ───────────────────────────────────────────
 const STAGES = [
-  { id:1, icon:"🏪", label:"Store Info",       sub:"Brand & contact" },
-  { id:2, icon:"📋", label:"Tax & Compliance",  sub:"PAN, GST" },
-  { id:3, icon:"🔗", label:"Shopify Setup",    sub:"API tokens" },
-  { id:4, icon:"💳", label:"Payouts",          sub:"Bank details" },
-  { id:5, icon:"📦", label:"Catalogue",        sub:"Categories & products" },
-  { id:6, icon:"🚚", label:"Fulfilment",       sub:"Shipping & returns" },
-  { id:7, icon:"✅", label:"Review & Submit",  sub:"Go live" },
+  { id:1, icon:"👤", label:"Brand & Contact",      sub:"Identity & categories" },
+  { id:2, icon:"📋", label:"Business & Compliance", sub:"Address, PAN & GST" },
+  { id:3, icon:"🚚", label:"Fulfilment",            sub:"Shipping & returns" },
+  { id:4, icon:"🏪", label:"Store & Catalogue",     sub:"Platform & product source" },
+  { id:5, icon:"💳", label:"Payments",              sub:"Stripe & bank details" },
+  { id:6, icon:"✅", label:"Review & Submit",       sub:"Confirm & go live" },
 ];
 
 // ─── Root wizard ─────────────────────────────────────────────────
@@ -2965,7 +2626,7 @@ function VendorRegistration() {
   const saved = loadReg();
   const [data, setData] = useState(saved || {
     vendorId:genId(), currency:"INR", apiVersion:"2025-04",
-    processingDays:"3", oosMode:"hide", createdAt:today(),
+    billingCountry:"India", processingDays:"3", oosMode:"hide", createdAt:today(),
   });
   const [stage, setStage] = useState(1);
   const [savedMsg, setSavedMsg] = useState(false);
@@ -3001,7 +2662,7 @@ function VendorRegistration() {
   const reset = () => {
     if (!window.confirm("Start a new registration? Your saved progress will be cleared.")) return;
     const fresh = { vendorId:genId(), currency:"INR", apiVersion:"2025-04",
-      processingDays:"3", oosMode:"hide", createdAt:today() };
+      billingCountry:"India", processingDays:"3", oosMode:"hide", createdAt:today() };
     saveReg(fresh);
     setData(fresh);
     setStage(1);
@@ -3009,23 +2670,21 @@ function VendorRegistration() {
   };
 
   const stageComplete = {
-    1: !!(data.brandName && data.storeUrl && data.plan && data.contactEmail),
-    2: validatePAN(data.pan||""),
-    3: !!(data.storefrontToken && data.adminToken && data.webhookSecret),
-    4: !!(data.accountName && data.accountNumber && data.ifsc && data.accountType),
-    5: (data.categories||[]).length > 0,
-    6: !!(data.processingDays && data.shippingRegion),
-    7: true,
+    1: !!(data.contactEmail && data.brandName && data.fullLegalName && (data.categories||[]).length > 0),
+    2: !!(validatePAN(data.pan||"") && data.billingCity && data.billingState),
+    3: !!(data.processingDays && data.shippingRegion && (data.warehouseCities||[]).length > 0),
+    4: !!(data.storeUrl || data.catalogueSource),
+    5: !!(data.accountName && data.accountNumber && data.ifsc),
+    6: true,
   };
 
   const stageContent = {
-    1: <StoreInfoStage data={data} update={update} />,
-    2: <TaxStage data={data} update={update} />,
-    3: <ShopifyStage data={data} update={update} />,
-    4: <PayoutsStage data={data} update={update} />,
-    5: <CatalogueStage data={data} update={update} />,
-    6: <FulfilmentStage data={data} update={update} />,
-    7: <ReviewStage data={data} onSubmit={submit} />,
+    1: <BrandContactStage data={data} update={update} />,
+    2: <BusinessComplianceStage data={data} update={update} />,
+    3: <FulfilmentStage data={data} update={update} />,
+    4: <StoreCatalogueStage data={data} update={update} />,
+    5: <PaymentsStage data={data} update={update} />,
+    6: <ReviewStage data={data} onSubmit={submit} />,
   };
 
   if (submitted) {

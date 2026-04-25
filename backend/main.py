@@ -149,6 +149,14 @@ class VendorRegisterRequest(BaseModel):
     acceptsReturns: Optional[bool] = False
     returnDays: Optional[str] = None
     lowStockAlerts: Optional[bool] = False
+    fullLegalName: Optional[str] = None
+    billingStreet: Optional[str] = None
+    billingCity: Optional[str] = None
+    billingState: Optional[str] = None
+    billingPin: Optional[str] = None
+    billingCountry: Optional[str] = "India"
+    catalogueSource: Optional[str] = None
+    driveUrl: Optional[str] = None
     createdAt: Optional[str] = None
     submittedAt: Optional[str] = None
     submitted: Optional[bool] = False
@@ -609,6 +617,60 @@ async def _do_vendor_pull_job(job_id: str, vendor_id: str):
             "drive_folder_url": folder_url,
         },
     }
+
+
+@app.post("/api/vendors/{vendor_id}/import-csv", status_code=201)
+async def vendor_import_csv(vendor_id: str, request: Request):
+    """Parse a vendor-uploaded CSV and queue all products as pending in Supabase."""
+    import csv
+    import io
+
+    vendor = await asyncio.get_event_loop().run_in_executor(_executor, get_vendor, vendor_id)
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found.")
+
+    body = await request.body()
+    try:
+        text = body.decode("utf-8-sig")  # handles BOM
+    except UnicodeDecodeError:
+        text = body.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(text))
+    queued = 0
+    errors = []
+
+    brand_name = vendor.get("brand_name") or vendor_id
+
+    for i, row in enumerate(reader, start=2):  # row 1 is header
+        name = (row.get("product_name") or row.get("name") or row.get("title") or "").strip()
+        if not name:
+            continue
+        assets = []
+        for j in range(1, 5):
+            url = (row.get(f"asset_{j}_url") or row.get(f"image_{j}") or "").strip()
+            if url:
+                assets.append({"url": url, "type": "image"})
+        try:
+            await asyncio.get_event_loop().run_in_executor(
+                _executor,
+                upsert_product,
+                {
+                    "shopify_product_id": None,
+                    "vendor_id":          vendor_id,
+                    "vendor_brand_name":  brand_name,
+                    "title":              name,
+                    "description":        (row.get("description") or row.get("product_description") or "").strip(),
+                    "price":              (row.get("price") or "0").strip(),
+                    "assets":             assets,
+                    "status":             "pending",
+                    "shopify_updated_at": None,
+                },
+            )
+            queued += 1
+        except Exception as exc:
+            errors.append(f"Row {i}: {exc}")
+
+    return {"queued": queued, "errors": errors}
 
 
 @app.post("/api/vendors/{vendor_id}/pull-products", status_code=202)

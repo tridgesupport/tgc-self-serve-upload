@@ -13,6 +13,8 @@ _PATCHABLE = {
     "sku_count", "price_range", "oos_mode", "processing_days",
     "shipping_region", "api_version", "bank_name", "account_name",
     "account_number", "ifsc", "account_type",
+    "full_legal_name", "billing_street", "billing_city", "billing_state",
+    "billing_pin", "billing_country", "catalogue_source", "drive_url",
 }
 
 
@@ -80,6 +82,15 @@ def init_db():
                 return_days           TEXT,
                 low_stock_alerts      INTEGER DEFAULT 0,
 
+                full_legal_name       TEXT,
+                billing_street        TEXT,
+                billing_city          TEXT,
+                billing_state         TEXT,
+                billing_pin           TEXT,
+                billing_country       TEXT DEFAULT 'India',
+                catalogue_source      TEXT,
+                drive_url             TEXT,
+
                 status                TEXT DEFAULT 'pending',
                 activated_at          TEXT,
                 last_pulled_at        TEXT,
@@ -87,11 +98,22 @@ def init_db():
                 webhook_ids           TEXT DEFAULT '{}'
             );
         """)
-        # Add webhook_ids to existing databases that pre-date this column
-        try:
-            conn.execute("ALTER TABLE vendors ADD COLUMN webhook_ids TEXT DEFAULT '{}'")
-        except Exception:
-            pass  # Column already exists
+        # Add columns to existing databases that pre-date them
+        for col_sql in [
+            "ALTER TABLE vendors ADD COLUMN webhook_ids TEXT DEFAULT '{}'",
+            "ALTER TABLE vendors ADD COLUMN full_legal_name TEXT",
+            "ALTER TABLE vendors ADD COLUMN billing_street TEXT",
+            "ALTER TABLE vendors ADD COLUMN billing_city TEXT",
+            "ALTER TABLE vendors ADD COLUMN billing_state TEXT",
+            "ALTER TABLE vendors ADD COLUMN billing_pin TEXT",
+            "ALTER TABLE vendors ADD COLUMN billing_country TEXT DEFAULT 'India'",
+            "ALTER TABLE vendors ADD COLUMN catalogue_source TEXT",
+            "ALTER TABLE vendors ADD COLUMN drive_url TEXT",
+        ]:
+            try:
+                conn.execute(col_sql)
+            except Exception:
+                pass
 
 
 def _row_to_dict(row) -> Optional[dict]:
@@ -151,6 +173,14 @@ def upsert_vendor(data: dict) -> dict:
         "accepts_returns":       int(bool(data.get("acceptsReturns", False))),
         "return_days":           data.get("returnDays"),
         "low_stock_alerts":      int(bool(data.get("lowStockAlerts", False))),
+        "full_legal_name":       data.get("fullLegalName"),
+        "billing_street":        data.get("billingStreet"),
+        "billing_city":          data.get("billingCity"),
+        "billing_state":         data.get("billingState"),
+        "billing_pin":           data.get("billingPin"),
+        "billing_country":       data.get("billingCountry", "India"),
+        "catalogue_source":      data.get("catalogueSource"),
+        "drive_url":             data.get("driveUrl"),
     }
 
     cols         = list(fields.keys())
