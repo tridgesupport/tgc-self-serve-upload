@@ -2193,12 +2193,55 @@ function StoreCatalogueStage({ data, update }) {
   const [tokenResults, setTokenResults]   = useState({});
   const lastUrl = useRef("");
 
-  const handleUrlBlur = () => {
+  const handleUrlBlur = async () => {
     const url = (data.storeUrl || "").trim();
     if (!url || url === lastUrl.current || url.length < 4) return;
     lastUrl.current = url;
-    setDetecting(true); setPlatformResult(null);
-    setTimeout(() => { setDetecting(false); setPlatformResult(detectPlatformLocally(url)); }, 350);
+    setDetecting(true);
+    setPlatformResult(null);
+
+    // Fast local check for definitive .myshopify.com domains
+    const local = detectPlatformLocally(url);
+    if (local?.isShopify) {
+      setDetecting(false);
+      setPlatformResult(local);
+      return;
+    }
+    // Backend probe for custom domains
+    try {
+      const res = await fetch(`${window.API_BASE_URL || ""}/api/detect-platform`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const { isShopify, confidence, method } = await res.json();
+      if (isShopify) {
+        setPlatformResult({
+          detected: true, platform: "shopify", platformLabel: "Shopify",
+          isShopify: true, isMyshopifyDomain: false, supported: true,
+          confidence, headline: "Shopify store confirmed",
+          message: `Shopify detected via ${method === "products_json" ? "store API" : method === "header" ? "response headers" : "page content"}. Select your plan below.`,
+        });
+      } else if (local) {
+        setPlatformResult(local);
+      } else {
+        setPlatformResult({
+          detected: false, platform: "unknown", platformLabel: "Unknown",
+          isShopify: false, isMyshopifyDomain: false, supported: false,
+          confidence: "low", headline: "Platform not recognised",
+          message: "We couldn't confirm this is a Shopify store. If it is, try the .myshopify.com domain (e.g. yourstore.myshopify.com). Otherwise contact us to discuss onboarding options.",
+        });
+      }
+    } catch {
+      setPlatformResult(local || {
+        detected: false, platform: "unknown", platformLabel: "Unknown",
+        isShopify: false, isMyshopifyDomain: false, supported: false,
+        confidence: "low", headline: "Detection failed",
+        message: "Could not reach the detection service. Check your connection and try again.",
+      });
+    } finally {
+      setDetecting(false);
+    }
   };
 
   const isShopify  = platformResult?.isShopify === true ||
@@ -2263,7 +2306,7 @@ function StoreCatalogueStage({ data, update }) {
             placeholder="yourstore.myshopify.com or www.yoursite.com" isMono />
           <PlatformBadge result={platformResult} detecting={detecting} />
         </Fld>
-        {(isShopify || (!detectedNotShopify && data.storeUrl)) && (
+        {isShopify && (
           <Fld><Lbl required>Shopify Plan</Lbl>
             <Sel value={data.plan||""} onChange={v=>update("plan",v)} options={[
               {v:"",l:"Select plan…"},{v:"basic",l:"Basic ($39/mo)"},{v:"shopify",l:"Shopify ($105/mo)"},

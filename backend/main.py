@@ -79,6 +79,10 @@ class ScrapeRequest(BaseModel):
     brand: str
 
 
+class DetectPlatformRequest(BaseModel):
+    url: str
+
+
 class AssetIn(BaseModel):
     url: str
     type: str  # 'image' | 'video'
@@ -684,6 +688,61 @@ async def vendor_pull_products(vendor_id: str, background_tasks: BackgroundTasks
     _jobs[job_id] = {"status": "pending"}
     background_tasks.add_task(_run_vendor_pull_job, job_id, vendor_id)
     return {"job_id": job_id}
+
+
+# ---------------------------------------------------------------------------
+# POST /api/detect-platform — probe a URL for Shopify fingerprints
+# ---------------------------------------------------------------------------
+
+@app.post("/api/detect-platform")
+async def detect_platform_endpoint(req: DetectPlatformRequest):
+    """
+    Probe a store URL to check if it's a Shopify store.
+    Uses three methods in order: products.json, response headers, homepage HTML.
+    Returns { isShopify, confidence, method }.
+    """
+    import requests as _req
+    raw = req.url.strip()
+    if not raw or len(raw) < 4:
+        return {"isShopify": False, "confidence": "low", "method": "none"}
+
+    if not raw.startswith("http"):
+        raw = "https://" + raw
+    parsed = urlparse(raw)
+    domain = parsed.netloc or parsed.path.split("/")[0]
+    base = f"https://{domain}"
+    hdrs = {"User-Agent": "Mozilla/5.0 (compatible; TGCVendorBot/1.0)"}
+
+    # 1. /products.json — only Shopify stores expose this
+    try:
+        r = _req.get(f"{base}/products.json?limit=1", headers=hdrs, timeout=10, allow_redirects=True)
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, dict) and "products" in data:
+                return {"isShopify": True, "confidence": "high", "method": "products_json"}
+    except Exception:
+        pass
+
+    # 2. Shopify-specific response headers
+    try:
+        r = _req.head(base, headers=hdrs, timeout=8, allow_redirects=True)
+        hdr_names = {k.lower() for k in r.headers}
+        if "x-shopify-shop-id" in hdr_names or "x-shopify-stage" in hdr_names:
+            return {"isShopify": True, "confidence": "high", "method": "header"}
+    except Exception:
+        pass
+
+    # 3. Homepage HTML fingerprint
+    try:
+        r = _req.get(base, headers=hdrs, timeout=10, allow_redirects=True)
+        html = r.text
+        shopify_signals = ["cdn.shopify.com", "Shopify.theme", ".myshopify.com", "shopify-section", "ShopifyAnalytics"]
+        if any(sig in html for sig in shopify_signals):
+            return {"isShopify": True, "confidence": "medium", "method": "html"}
+    except Exception:
+        pass
+
+    return {"isShopify": False, "confidence": "high", "method": "none"}
 
 
 # ---------------------------------------------------------------------------
