@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.background import BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -456,6 +457,174 @@ async def update_page(slug: str, req: PageUpdateRequest):
     pages[slug]["content"] = req.content
     _save_pages(pages)
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Standalone public pages (Stripe-compatible URLs)
+#   /support        → Customer Support
+#   /terms          → Terms of Service
+#   /privacy        → Privacy Policy
+#   /cancellation   → Cancellation Policy
+# ---------------------------------------------------------------------------
+
+_PAGE_ROUTE_MAP = {
+    "support":      "customer-support",
+    "terms":        "terms-of-service",
+    "privacy":      "privacy-policy",
+    "cancellation": "cancellation-policy",
+}
+
+def _render_page_html(slug: str) -> str:
+    pages = _load_pages()
+    page  = pages.get(slug, {})
+    title   = page.get("title", "The Gift Collective")
+    content = page.get("content", "<p>Page not found.</p>")
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{title} — The Gift Collective</title>
+  <style>
+    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    :root {{
+      --accent: #2d6a4f;
+      --bg: #f7f5f2;
+      --text: #1a1a1a;
+      --muted: #6b6b6b;
+      --border: #e2ddd8;
+      --surface: #ffffff;
+    }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }}
+    header {{
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }}
+    header a {{
+      text-decoration: none;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -.3px;
+    }}
+    header nav a {{
+      font-size: .85rem;
+      color: var(--muted);
+      text-decoration: none;
+      margin-left: 20px;
+    }}
+    header nav a:hover {{ color: var(--accent); }}
+    main {{
+      max-width: 760px;
+      margin: 40px auto;
+      padding: 0 24px 60px;
+      flex: 1;
+    }}
+    .page-card {{
+      background: var(--surface);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      padding: 40px 44px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.06);
+    }}
+    .page-card h2 {{
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--border);
+    }}
+    .page-card h3 {{
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin: 28px 0 8px;
+      color: var(--text);
+    }}
+    .page-card h4 {{
+      font-size: .95rem;
+      font-weight: 700;
+      margin: 20px 0 6px;
+      color: var(--text);
+    }}
+    .page-card p {{ margin-bottom: 12px; line-height: 1.75; font-size: .94rem; }}
+    .page-card ul, .page-card ol {{
+      padding-left: 22px;
+      margin-bottom: 14px;
+    }}
+    .page-card li {{ margin-bottom: 6px; line-height: 1.65; font-size: .94rem; }}
+    .page-card a {{ color: var(--accent); text-decoration: underline; }}
+    .page-card strong {{ font-weight: 600; }}
+    footer {{
+      background: #1a2e25;
+      color: #6b9080;
+      text-align: center;
+      padding: 20px 24px;
+      font-size: .8rem;
+    }}
+    footer a {{ color: #a3bdb4; text-decoration: none; margin: 0 10px; }}
+    footer a:hover {{ color: #fff; }}
+    @media (max-width: 600px) {{
+      .page-card {{ padding: 24px 20px; }}
+      header {{ padding: 14px 16px; }}
+    }}
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">The Gift Collective</a>
+    <nav>
+      <a href="/support">Support</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/cancellation">Cancellation</a>
+    </nav>
+  </header>
+  <main>
+    <div class="page-card">
+      {content}
+    </div>
+  </main>
+  <footer>
+    <span>© 2026 The Gift Collective Pty Ltd.</span>
+    <a href="/support">Customer Support</a>
+    <a href="/terms">Terms of Service</a>
+    <a href="/privacy">Privacy Policy</a>
+    <a href="/cancellation">Cancellation Policy</a>
+  </footer>
+</body>
+</html>"""
+
+
+@app.get("/support", response_class=HTMLResponse)
+async def page_support():
+    return _render_page_html("customer-support")
+
+
+@app.get("/terms", response_class=HTMLResponse)
+async def page_terms():
+    return _render_page_html("terms-of-service")
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def page_privacy():
+    return _render_page_html("privacy-policy")
+
+
+@app.get("/cancellation", response_class=HTMLResponse)
+async def page_cancellation():
+    return _render_page_html("cancellation-policy")
 
 
 # ---------------------------------------------------------------------------
