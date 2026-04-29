@@ -760,6 +760,166 @@
     }
     .admin-back-btn:hover { background: #e8f4f0; }
 
+    /* ── Footer ── */
+    #site-footer {
+      background: #1a2e25;
+      color: #c8d8d0;
+      padding: 40px 32px 24px;
+      margin-top: 60px;
+      font-size: .84rem;
+      line-height: 1.7;
+    }
+    #site-footer .footer-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 32px;
+    }
+    #site-footer h4 {
+      color: #fff;
+      font-size: .8rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    #site-footer a {
+      display: block;
+      color: #a3bdb4;
+      text-decoration: none;
+      margin-bottom: 7px;
+      transition: color .15s;
+      cursor: pointer;
+    }
+    #site-footer a:hover { color: #fff; }
+    #site-footer .footer-bottom {
+      max-width: 960px;
+      margin: 28px auto 0;
+      padding-top: 20px;
+      border-top: 1px solid #2e4a3a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: .78rem;
+      color: #6b9080;
+    }
+
+    /* ── Page Modal ── */
+    #page-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      z-index: 1000;
+      overflow-y: auto;
+      padding: 40px 16px;
+    }
+    #page-modal-overlay.open { display: flex; align-items: flex-start; justify-content: center; }
+    #page-modal {
+      background: var(--surface);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 760px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.25);
+      overflow: hidden;
+      animation: modalIn .18s ease;
+    }
+    @keyframes modalIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    #page-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+    }
+    #page-modal-header h3 { font-size: 1rem; font-weight: 700; color: var(--text); }
+    #page-modal-close {
+      background: none;
+      border: none;
+      font-size: 1.3rem;
+      cursor: pointer;
+      color: var(--muted);
+      line-height: 1;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    #page-modal-close:hover { background: var(--bg); color: var(--text); }
+    #page-modal-body {
+      padding: 28px 32px 36px;
+      font-size: .92rem;
+      line-height: 1.75;
+      color: var(--text);
+    }
+    #page-modal-body h2 { font-size: 1.3rem; margin-bottom: 18px; color: var(--accent); }
+    #page-modal-body h3 { font-size: 1rem; font-weight: 700; margin: 24px 0 8px; }
+    #page-modal-body h4 { font-size: .92rem; font-weight: 700; margin: 18px 0 6px; }
+    #page-modal-body p  { margin-bottom: 12px; }
+    #page-modal-body ul, #page-modal-body ol { padding-left: 22px; margin-bottom: 12px; }
+    #page-modal-body li { margin-bottom: 5px; }
+    #page-modal-body a  { color: var(--accent); text-decoration: underline; }
+
+    /* ── Admin Pages Editor ── */
+    .pages-editor-grid {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 0;
+      min-height: 520px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .pages-editor-nav {
+      background: var(--bg);
+      border-right: 1px solid var(--border);
+      padding: 12px 0;
+    }
+    .pages-editor-nav button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 11px 18px;
+      background: none;
+      border: none;
+      font-size: .86rem;
+      color: var(--muted);
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: all .15s;
+    }
+    .pages-editor-nav button:hover { background: #eee; color: var(--text); }
+    .pages-editor-nav button.active { color: var(--accent); font-weight: 700; border-left-color: var(--accent); background: var(--surface); }
+    .pages-editor-content { padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
+    .pages-editor-content textarea {
+      flex: 1;
+      min-height: 360px;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      font-size: .82rem;
+      line-height: 1.6;
+      padding: 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      resize: vertical;
+      color: var(--text);
+      background: var(--surface);
+    }
+    .pages-editor-content textarea:focus { outline: none; border-color: var(--accent); }
+    .pages-preview-btn {
+      font-size: .82rem;
+      padding: 7px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--muted);
+    }
+    .pages-preview-btn:hover { color: var(--text); background: #eee; }
+
     /* ── Responsive ── */
     @media (max-width: 900px) {
       .card-body { grid-template-columns: 1fr; }
@@ -869,6 +1029,19 @@
       <button id="pushBtn" disabled onclick="pushToStorage()">Approve &amp; Push to ImageKit</button>
     </div>
   </div>
+
+<!-- ── Pages Editor section (inside Admin tab) ── -->
+<div style="max-width:900px;margin:0 auto;padding:28px 32px 40px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+    <div>
+      <h3 style="font-size:.95rem;font-weight:700;color:var(--text);margin:0">Website Pages</h3>
+      <p style="font-size:.8rem;color:var(--muted);margin-top:3px">Edit the content shown to visitors in the footer pages.</p>
+    </div>
+  </div>
+  <div id="admin-pages-editor">
+    <p style="color:var(--muted);font-size:.86rem">Loading pages editor…</p>
+  </div>
+</div>
 
 </div><!-- /tab-admin -->
 
@@ -2829,6 +3002,178 @@ function VendorRegistration() {
 
 // Mount into tab panel
 ReactDOM.createRoot(document.getElementById('vendor-reg-root')).render(<VendorRegistration />);
+</script>
+
+<!-- ══════════ Page Modal ══════════ -->
+<div id="page-modal-overlay" onclick="if(event.target===this)closePageModal()">
+  <div id="page-modal">
+    <div id="page-modal-header">
+      <h3 id="page-modal-title">Page</h3>
+      <button id="page-modal-close" onclick="closePageModal()" title="Close">✕</button>
+    </div>
+    <div id="page-modal-body"></div>
+  </div>
+</div>
+
+<!-- ══════════ Footer ══════════ -->
+<footer id="site-footer">
+  <div class="footer-inner">
+    <div>
+      <h4>The Gift Collective</h4>
+      <p>Curating India's finest independent brands — one thoughtful gift at a time.</p>
+    </div>
+    <div>
+      <h4>Information</h4>
+      <a onclick="openPage('customer-support')">Customer Support</a>
+      <a onclick="openPage('cancellation-policy')">Cancellation Policy</a>
+    </div>
+    <div>
+      <h4>Legal</h4>
+      <a onclick="openPage('terms-of-service')">Terms of Service</a>
+      <a onclick="openPage('privacy-policy')">Privacy Policy</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 The Gift Collective Pty Ltd. All rights reserved.</span>
+    <span>Made with ♥ in India</span>
+  </div>
+</footer>
+
+<script>
+// ── Page modal ──────────────────────────────────────────────────
+const _pageCache = {};
+
+async function openPage(slug) {
+  const overlay = document.getElementById('page-modal-overlay');
+  const titleEl = document.getElementById('page-modal-title');
+  const bodyEl  = document.getElementById('page-modal-body');
+  titleEl.textContent = '...';
+  bodyEl.innerHTML    = '<p style="color:var(--muted);padding:20px 0">Loading…</p>';
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  try {
+    if (!_pageCache[slug]) {
+      const res  = await fetch(`${window.API_BASE_URL || ''}/api/pages/${slug}`);
+      _pageCache[slug] = await res.json();
+    }
+    const page = _pageCache[slug];
+    titleEl.textContent = page.title;
+    bodyEl.innerHTML    = page.content;
+  } catch {
+    bodyEl.innerHTML = '<p style="color:var(--danger)">Failed to load page. Please try again.</p>';
+  }
+}
+
+function closePageModal() {
+  document.getElementById('page-modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePageModal(); });
+
+// ── Admin Pages Editor ──────────────────────────────────────────
+let _pagesData    = {};
+let _activePage   = 'customer-support';
+const PAGE_SLUGS  = ['customer-support','terms-of-service','privacy-policy','cancellation-policy'];
+const PAGE_LABELS = {
+  'customer-support':   'Customer Support',
+  'terms-of-service':   'Terms of Service',
+  'privacy-policy':     'Privacy Policy',
+  'cancellation-policy':'Cancellation Policy',
+};
+
+async function loadPagesEditor() {
+  const wrap = document.getElementById('admin-pages-editor');
+  if (!wrap) return;
+  try {
+    const res = await fetch(`${window.API_BASE_URL || ''}/api/pages`);
+    _pagesData = await res.json();
+    renderPagesEditor();
+  } catch {
+    wrap.innerHTML = '<p style="color:var(--danger);padding:20px">Failed to load pages.</p>';
+  }
+}
+
+function renderPagesEditor() {
+  const wrap = document.getElementById('admin-pages-editor');
+  if (!wrap) return;
+  wrap.innerHTML = `
+    <div class="pages-editor-grid">
+      <nav class="pages-editor-nav">
+        ${PAGE_SLUGS.map(s => `<button onclick="selectEditorPage('${s}')" id="pnav-${s}" class="${s===_activePage?'active':''}">${PAGE_LABELS[s]}</button>`).join('')}
+      </nav>
+      <div class="pages-editor-content" id="pages-editor-right">
+        ${renderEditorRight()}
+      </div>
+    </div>`;
+}
+
+function renderEditorRight() {
+  const page = _pagesData[_activePage];
+  if (!page) return '';
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <h4 style="font-size:.95rem;font-weight:700;color:var(--text);margin:0">${PAGE_LABELS[_activePage]}</h4>
+      <div style="display:flex;gap:8px">
+        <button class="pages-preview-btn" onclick="previewCurrentPage()">👁 Preview</button>
+        <button class="btn-primary" style="font-size:.82rem;padding:7px 16px" onclick="saveCurrentPage()">Save</button>
+      </div>
+    </div>
+    <p style="font-size:.78rem;color:var(--muted);margin-top:-4px">Edit HTML content below. Standard tags (h2–h4, p, ul, ol, li, strong, em, a) are supported.</p>
+    <textarea id="page-editor-ta" oninput="_pagesData['${_activePage}'].content=this.value">${escHtml(page.content)}</textarea>
+    <div id="page-save-status" style="font-size:.82rem;height:18px"></div>`;
+}
+
+function escHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function selectEditorPage(slug) {
+  _activePage = slug;
+  PAGE_SLUGS.forEach(s => {
+    const btn = document.getElementById('pnav-'+s);
+    if (btn) btn.className = s===slug ? 'active' : '';
+  });
+  document.getElementById('pages-editor-right').innerHTML = renderEditorRight();
+}
+
+async function saveCurrentPage() {
+  const statusEl = document.getElementById('page-save-status');
+  const ta = document.getElementById('page-editor-ta');
+  const content = ta ? ta.value : (_pagesData[_activePage]||{}).content || '';
+  // Bust cache so modal re-fetches
+  delete _pageCache[_activePage];
+  try {
+    statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--muted)';
+    await fetch(`${window.API_BASE_URL || ''}/api/pages/${_activePage}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    _pagesData[_activePage].content = content;
+    statusEl.textContent = '✓ Saved'; statusEl.style.color = 'var(--accent)';
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2500);
+  } catch {
+    statusEl.textContent = '✗ Save failed'; statusEl.style.color = 'var(--danger)';
+  }
+}
+
+function previewCurrentPage() {
+  const ta = document.getElementById('page-editor-ta');
+  const content = ta ? ta.value : '';
+  const page = _pagesData[_activePage];
+  // Inject current (unsaved) content into modal for preview
+  _pageCache[_activePage] = { title: PAGE_LABELS[_activePage], content };
+  openPage(_activePage);
+}
+
+// Load pages editor when Admin tab is activated
+const _origSwitchTab = window.switchTab;
+window.switchTab = function(tab) {
+  if (_origSwitchTab) _origSwitchTab(tab);
+  if (tab === 'admin') setTimeout(loadPagesEditor, 100);
+};
 </script>
 </body>
 </html>

@@ -83,6 +83,10 @@ class DetectPlatformRequest(BaseModel):
     url: str
 
 
+class PageUpdateRequest(BaseModel):
+    content: str
+
+
 class AssetIn(BaseModel):
     url: str
     type: str  # 'image' | 'video'
@@ -212,6 +216,246 @@ def sanitize(name: str) -> str:
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Static pages (Customer Support, ToS, Privacy Policy, Cancellation Policy)
+# Stored as JSON in backend/pages.json; defaults are baked in below.
+# ---------------------------------------------------------------------------
+
+import json as _json
+
+_PAGES_FILE = os.path.join(os.path.dirname(__file__), "pages.json")
+
+_DEFAULT_PAGES = {
+    "customer-support": {
+        "title": "Customer Support",
+        "content": """<h2>Customer Support</h2>
+<p>Welcome to The Gift Collective's Customer Support centre. We're here to help with any questions about your order, our vendors, or our platform.</p>
+
+<h3>Contact Us</h3>
+<p><strong>Email:</strong> support@thegiftcollective.com.au<br>
+<strong>Response time:</strong> We aim to respond to all enquiries within 1–2 business days (Monday–Friday, 9 am–5 pm AEST).</p>
+
+<h3>Frequently Asked Questions</h3>
+
+<h4>How do I track my order?</h4>
+<p>Once your order has been dispatched, you will receive a confirmation email with tracking details from the vendor. If you have not received tracking information within 5 business days of placing your order, please contact us.</p>
+
+<h4>My item arrived damaged — what do I do?</h4>
+<p>We're sorry to hear that. Please email us at support@thegiftcollective.com.au within 48 hours of receiving your order, including your order number and clear photographs of the damage. We will liaise with the vendor on your behalf to arrange a replacement or refund.</p>
+
+<h4>Can I change or cancel my order?</h4>
+<p>Orders can be amended or cancelled within 24 hours of placement, provided the vendor has not yet dispatched the goods. Please contact us as soon as possible. See our <a href="#" onclick="openPage('cancellation-policy')">Cancellation Policy</a> for full details.</p>
+
+<h4>I received the wrong item</h4>
+<p>Please contact us within 48 hours with your order number and a photo of what you received. We will arrange for the correct item to be sent to you at no additional cost.</p>
+
+<h4>Do you offer gift wrapping?</h4>
+<p>Many of our vendors offer gift wrapping and personalised messages. Look for the gift-wrap option at checkout. Availability varies by vendor.</p>
+
+<h4>What payment methods do you accept?</h4>
+<p>We accept all major credit cards (Visa, Mastercard, American Express), PayPal, and Afterpay where eligible.</p>
+
+<h3>Vendor Enquiries</h3>
+<p>If you are a brand looking to list your products on The Gift Collective, please use our <strong>Vendor Registration</strong> form or email us at vendors@thegiftcollective.com.au.</p>"""
+    },
+    "terms-of-service": {
+        "title": "Terms of Service",
+        "content": """<h2>Terms of Service</h2>
+<p><em>Last updated: April 2026</em></p>
+<p>Please read these Terms of Service ("Terms") carefully before using The Gift Collective website and services operated by The Gift Collective Pty Ltd ("we", "us", "our").</p>
+
+<h3>1. Acceptance of Terms</h3>
+<p>By accessing or using our website, placing an order, or registering as a vendor, you agree to be bound by these Terms. If you do not agree, please do not use our services.</p>
+
+<h3>2. Our Services</h3>
+<p>The Gift Collective operates a curated online marketplace connecting customers with independent brands and artisans. We act as an intermediary platform; individual vendors are responsible for the production, quality, and dispatch of their goods.</p>
+
+<h3>3. Orders & Payments</h3>
+<p>All prices are listed in Indian Rupees (INR) unless otherwise stated, and are inclusive of applicable taxes. We reserve the right to cancel any order if a product is unavailable or if a pricing error occurs. Full payment is required at the time of order.</p>
+
+<h3>4. Delivery</h3>
+<p>Estimated delivery times are provided by individual vendors and are not guaranteed. The Gift Collective is not liable for delays caused by carriers, customs, or events outside our reasonable control.</p>
+
+<h3>5. Returns & Refunds</h3>
+<p>Our returns policy is governed by the individual vendor's terms. Please refer to the product listing for specific returns information. Statutory consumer rights remain unaffected.</p>
+
+<h3>6. Vendor Obligations</h3>
+<p>Vendors agree to provide accurate product descriptions, maintain adequate stock, dispatch orders within the stated timeframe, and comply with all applicable laws. The Gift Collective reserves the right to suspend or remove any vendor listing at its discretion.</p>
+
+<h3>7. Intellectual Property</h3>
+<p>All content on this website — including text, images, logos, and design — is the property of The Gift Collective or its respective vendors and may not be reproduced without written consent.</p>
+
+<h3>8. Limitation of Liability</h3>
+<p>To the maximum extent permitted by law, The Gift Collective shall not be liable for any indirect, incidental, or consequential damages arising from your use of the platform or any products purchased through it.</p>
+
+<h3>9. Governing Law</h3>
+<p>These Terms are governed by the laws of India. Any disputes shall be subject to the exclusive jurisdiction of the courts of Mumbai, Maharashtra.</p>
+
+<h3>10. Changes to These Terms</h3>
+<p>We may update these Terms from time to time. Continued use of our platform after changes constitutes your acceptance of the revised Terms.</p>
+
+<h3>11. Contact</h3>
+<p>For questions about these Terms, please contact us at legal@thegiftcollective.com.au.</p>"""
+    },
+    "privacy-policy": {
+        "title": "Privacy Policy",
+        "content": """<h2>Privacy Policy</h2>
+<p><em>Last updated: April 2026</em></p>
+<p>The Gift Collective Pty Ltd ("we", "us") is committed to protecting your personal information. This Privacy Policy explains how we collect, use, and safeguard your data in accordance with applicable privacy legislation, including the Information Technology Act 2000 (India) and GDPR where applicable.</p>
+
+<h3>1. Information We Collect</h3>
+<p>We may collect the following information:</p>
+<ul>
+<li><strong>Account & identity data:</strong> name, email address, phone number, business name, PAN/GST number (vendors).</li>
+<li><strong>Transaction data:</strong> order history, payment method (we do not store full card details — payments are processed by Stripe).</li>
+<li><strong>Usage data:</strong> pages visited, time on site, browser type, IP address, and cookies.</li>
+<li><strong>Communications:</strong> messages you send us via email or support forms.</li>
+</ul>
+
+<h3>2. How We Use Your Information</h3>
+<p>We use your information to:</p>
+<ul>
+<li>Process and fulfil your orders.</li>
+<li>Send order confirmation, dispatch, and tracking emails.</li>
+<li>Respond to customer support queries.</li>
+<li>Improve our platform and personalise your experience.</li>
+<li>Comply with legal obligations (e.g. tax records, fraud prevention).</li>
+<li>Send marketing communications — only with your consent, which you can withdraw at any time.</li>
+</ul>
+
+<h3>3. Sharing Your Information</h3>
+<p>We share data only where necessary:</p>
+<ul>
+<li><strong>Vendors:</strong> receive the shipping address and order details needed to fulfil your purchase.</li>
+<li><strong>Payment processors:</strong> Stripe processes card transactions under their own privacy policy.</li>
+<li><strong>Service providers:</strong> hosting (Railway), file storage (Google Drive, ImageKit), analytics tools — all under strict data processing agreements.</li>
+<li><strong>Legal compliance:</strong> where required by law or to protect our rights.</li>
+</ul>
+<p>We do not sell your personal data to third parties.</p>
+
+<h3>4. Cookies</h3>
+<p>We use cookies to maintain your session and analyse site traffic. You can disable cookies in your browser settings, though some features may not function correctly.</p>
+
+<h3>5. Data Retention</h3>
+<p>We retain your data for as long as your account is active or as required for legal and tax purposes (typically 7 years for financial records). You may request deletion of your personal data by contacting us.</p>
+
+<h3>6. Your Rights</h3>
+<p>You have the right to access, correct, or delete your personal data; to object to processing; and to data portability. To exercise any of these rights, email privacy@thegiftcollective.com.au.</p>
+
+<h3>7. Security</h3>
+<p>We employ industry-standard security measures including HTTPS encryption, access controls, and regular security reviews. No method of transmission over the Internet is 100% secure; we cannot guarantee absolute security.</p>
+
+<h3>8. Children's Privacy</h3>
+<p>Our services are not directed at children under 18. We do not knowingly collect personal data from minors.</p>
+
+<h3>9. Changes to This Policy</h3>
+<p>We may update this Privacy Policy periodically. We will notify you of significant changes by email or a prominent notice on our website.</p>
+
+<h3>10. Contact</h3>
+<p>For privacy-related enquiries, contact us at privacy@thegiftcollective.com.au or write to: The Gift Collective Pty Ltd, India.</p>"""
+    },
+    "cancellation-policy": {
+        "title": "Cancellation Policy",
+        "content": """<h2>Cancellation & Returns Policy</h2>
+<p><em>Last updated: April 2026</em></p>
+<p>At The Gift Collective, we want you to love every purchase. This policy outlines how cancellations, returns, and refunds are handled on our platform.</p>
+
+<h3>Order Cancellations</h3>
+
+<h4>Cancellation by Customer</h4>
+<p>You may cancel your order within <strong>24 hours of placing it</strong>, provided the vendor has not yet dispatched the goods. To cancel, please email orders@thegiftcollective.com.au with your order number as soon as possible.</p>
+<p>If your order has already been dispatched, we are unable to cancel it. In that case, please wait for delivery and then follow our returns process.</p>
+
+<h4>Cancellation by Vendor or The Gift Collective</h4>
+<p>In rare circumstances, a vendor may be unable to fulfil your order (e.g. item out of stock). You will be notified promptly and a full refund will be issued to your original payment method within 5–7 business days.</p>
+
+<h3>Returns</h3>
+
+<h4>Eligibility</h4>
+<p>Returns are accepted within <strong>14 days of delivery</strong>, provided the item is:</p>
+<ul>
+<li>Unused and in its original condition.</li>
+<li>In original packaging with all tags attached.</li>
+<li>Not a customised, personalised, or perishable item (unless faulty).</li>
+</ul>
+
+<h4>How to Initiate a Return</h4>
+<ol>
+<li>Email support@thegiftcollective.com.au with your order number and reason for return.</li>
+<li>We will provide you with return instructions and a return address within 2 business days.</li>
+<li>Return shipping costs are the customer's responsibility, except where the item is faulty or incorrectly sent.</li>
+</ol>
+
+<h3>Refunds</h3>
+<p>Once your returned item is received and inspected (typically within 5 business days), we will process your refund. Refunds are issued to your original payment method:</p>
+<ul>
+<li><strong>Credit/debit card:</strong> 5–10 business days.</li>
+<li><strong>Stripe/digital wallets:</strong> 3–5 business days.</li>
+</ul>
+<p>Original shipping charges are non-refundable unless the return is due to our error.</p>
+
+<h3>Faulty or Damaged Items</h3>
+<p>If you receive a faulty or damaged item, please contact us within <strong>48 hours of delivery</strong> with photographs. We will arrange a replacement or full refund, including return shipping, at no cost to you.</p>
+
+<h3>Non-Returnable Items</h3>
+<p>The following cannot be returned unless faulty:</p>
+<ul>
+<li>Personalised or custom-made products.</li>
+<li>Perishable goods (food, flowers, etc.).</li>
+<li>Digital products or downloadable content.</li>
+<li>Intimate apparel or pierced jewellery (for hygiene reasons).</li>
+</ul>
+
+<h3>Questions?</h3>
+<p>Please contact us at support@thegiftcollective.com.au — we're happy to help.</p>"""
+    },
+}
+
+
+def _load_pages() -> dict:
+    if os.path.exists(_PAGES_FILE):
+        try:
+            with open(_PAGES_FILE, "r") as f:
+                stored = _json.load(f)
+            # Merge stored over defaults so new default pages still appear
+            merged = {**_DEFAULT_PAGES}
+            for slug, page in stored.items():
+                if slug in merged:
+                    merged[slug]["content"] = page.get("content", merged[slug]["content"])
+            return merged
+        except Exception:
+            pass
+    return {k: dict(v) for k, v in _DEFAULT_PAGES.items()}
+
+
+def _save_pages(pages: dict) -> None:
+    with open(_PAGES_FILE, "w") as f:
+        _json.dump(pages, f, indent=2)
+
+
+@app.get("/api/pages")
+async def get_pages():
+    return _load_pages()
+
+
+@app.get("/api/pages/{slug}")
+async def get_page(slug: str):
+    pages = _load_pages()
+    if slug not in pages:
+        raise HTTPException(status_code=404, detail="Page not found")
+    return pages[slug]
+
+
+@app.put("/api/pages/{slug}")
+async def update_page(slug: str, req: PageUpdateRequest):
+    pages = _load_pages()
+    if slug not in pages:
+        raise HTTPException(status_code=404, detail="Page not found")
+    pages[slug]["content"] = req.content
+    _save_pages(pages)
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
