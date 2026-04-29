@@ -1045,6 +1045,63 @@
   </div>
 </div>
 
+<!-- ── Catalogue Editor section (inside Admin tab) ── -->
+<div style="max-width:1200px;margin:0 auto;padding:0 32px 60px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+    <div>
+      <h3 style="font-size:.95rem;font-weight:700;color:var(--text);margin:0">Catalogue Editor</h3>
+      <p style="font-size:.8rem;color:var(--muted);margin-top:3px">Edit approved products. Select rows for bulk edit, or use Apply to All.</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button id="catRefreshBtn" onclick="loadCatalogueEditor(true)" style="font-size:.8rem;padding:6px 14px;background:var(--card);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text)">Refresh</button>
+      <button id="catSaveBtn" onclick="saveCatalogueChanges()" style="font-size:.8rem;padding:6px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">Save Changes (<span id="catChangesCount">0</span>)</button>
+    </div>
+  </div>
+
+  <!-- Bulk edit toolbar (shown when rows selected) -->
+  <div id="cat-bulk-bar" style="display:none;background:var(--card);border:1px solid var(--primary);border-radius:8px;padding:12px 16px;margin-bottom:12px;gap:10px;flex-wrap:wrap;align-items:flex-end">
+    <span style="font-size:.82rem;font-weight:600;color:var(--primary);white-space:nowrap" id="cat-sel-label">0 selected</span>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;flex:1">
+      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Level 1</label><input id="cb-level_1" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;width:110px;background:var(--bg);color:var(--text)" placeholder="Category"></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Level 2</label><input id="cb-level_2" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;width:110px;background:var(--bg);color:var(--text)" placeholder="Subcategory"></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Level 3</label><input id="cb-level_3" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;width:110px;background:var(--bg);color:var(--text)" placeholder="Level 3"></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Collection</label><input id="cb-collection_description" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;width:120px;background:var(--bg);color:var(--text)" placeholder="e.g. Diwali"></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Show Product</label><select id="cb-show_product" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"><option value="">—</option><option value="true">Yes</option><option value="false">No</option></select></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Sold Out</label><select id="cb-sold_out" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"><option value="">—</option><option value="true">Yes</option><option value="false">No</option></select></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Homepage</label><select id="cb-is_homepage" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"><option value="">—</option><option value="true">Yes</option><option value="false">No</option></select></div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button onclick="applyBulkCatalogueEdit(false)" style="font-size:.8rem;padding:6px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;cursor:pointer">Apply to Selected</button>
+      <button onclick="applyBulkCatalogueEdit(true)" style="font-size:.8rem;padding:6px 14px;background:#888;color:#fff;border:none;border-radius:6px;cursor:pointer">Apply to All</button>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px">
+    <table id="cat-table" style="width:100%;border-collapse:collapse;font-size:.8rem">
+      <thead>
+        <tr style="background:var(--card);border-bottom:2px solid var(--border)">
+          <th style="padding:8px 10px;text-align:center;width:32px"><input type="checkbox" id="cat-select-all" onchange="toggleAllCatRows(this.checked)" title="Select all"></th>
+          <th style="padding:8px 10px;text-align:left;min-width:160px">Product</th>
+          <th style="padding:8px 10px;text-align:left;min-width:100px">Brand</th>
+          <th style="padding:8px 10px;text-align:left;min-width:70px">Price</th>
+          <th style="padding:8px 10px;text-align:left;min-width:100px">Level 1</th>
+          <th style="padding:8px 10px;text-align:left;min-width:100px">Level 2</th>
+          <th style="padding:8px 10px;text-align:left;min-width:100px">Level 3</th>
+          <th style="padding:8px 10px;text-align:left;min-width:110px">Collection</th>
+          <th style="padding:8px 10px;text-align:center;min-width:70px">Show</th>
+          <th style="padding:8px 10px;text-align:center;min-width:70px">Sold Out</th>
+          <th style="padding:8px 10px;text-align:center;min-width:70px">Homepage</th>
+        </tr>
+      </thead>
+      <tbody id="cat-tbody">
+        <tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted)">Loading catalogue…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p id="cat-status" style="font-size:.8rem;color:var(--muted);margin-top:8px"></p>
+</div>
+
 </div><!-- /tab-admin -->
 
 <!-- ── Result modal ── -->
@@ -3247,8 +3304,255 @@ function previewCurrentPage() {
 const _origSwitchTab = window.switchTab;
 window.switchTab = function(tab) {
   if (_origSwitchTab) _origSwitchTab(tab);
-  if (tab === 'admin') setTimeout(loadPagesEditor, 100);
+  if (tab === 'admin') {
+    setTimeout(loadPagesEditor, 100);
+    setTimeout(loadCatalogueEditor, 150);
+  }
 };
+</script>
+
+<script>
+// ── Catalogue Admin Editor ─────────────────────────────────────────────────
+// State
+let _catRows      = [];      // raw product objects from API
+let _catSelected  = new Set(); // product IDs selected
+let _catPending   = {};      // id → {field: newValue} pending changes
+let _catLoaded    = false;
+
+async function loadCatalogueEditor(force) {
+  if (_catLoaded && !force) return;
+  _catLoaded = true;
+  _catPending = {};
+  const tbody = document.getElementById('cat-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted)">Loading…</td></tr>';
+  try {
+    const res  = await fetch(`${window.API_BASE_URL || ''}/api/catalogue?admin=true&limit=2000`);
+    const data = await res.json();
+    _catRows = data.products || [];
+    _catSelected.clear();
+    _catPending = {};
+    renderCatalogueTable();
+    document.getElementById('cat-status').textContent =
+      `${_catRows.length} products loaded`;
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--danger)">Failed to load catalogue: ${e.message}</td></tr>`;
+  }
+}
+
+function renderCatalogueTable() {
+  const tbody = document.getElementById('cat-tbody');
+  if (!tbody) return;
+
+  if (!_catRows.length) {
+    tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted)">No products found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = _catRows.map((p, idx) => {
+    const id  = p.id;
+    const sel = _catSelected.has(id);
+    const pen = _catPending[id] || {};
+    const hasPen = Object.keys(pen).length > 0;
+    const bg  = hasPen ? 'background:#fffbe6' : '';
+
+    const cell = (field, val, width) => {
+      const cur = pen[field] !== undefined ? pen[field] : (val ?? '');
+      return `<td style="padding:6px 8px;border-bottom:1px solid var(--border);${bg}">
+        <input data-id="${id}" data-field="${field}" value="${String(cur).replace(/"/g,'&quot;')}"
+          style="font-size:.79rem;padding:3px 6px;border:1px solid var(--border);border-radius:3px;width:${width || 90}px;background:var(--bg);color:var(--text);${hasPen && pen[field] !== undefined ? 'border-color:var(--primary)' : ''}"
+          oninput="onCatCellEdit('${id}','${field}',this.value)">
+      </td>`;
+    };
+
+    const boolCell = (field, val) => {
+      const cur = pen[field] !== undefined ? pen[field] : val;
+      return `<td style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);${bg}">
+        <input type="checkbox" ${cur ? 'checked' : ''} data-id="${id}" data-field="${field}"
+          onchange="onCatCellEdit('${id}','${field}',this.checked)">
+      </td>`;
+    };
+
+    return `<tr id="cat-row-${idx}" style="${sel ? 'outline:2px solid var(--primary);outline-offset:-1px' : ''}">
+      <td style="padding:6px 10px;text-align:center;border-bottom:1px solid var(--border)">
+        <input type="checkbox" data-cat-id="${id}" ${sel ? 'checked' : ''} onchange="toggleCatRow('${id}',this.checked)">
+      </td>
+      ${cell('product_name', p.product_name, 150)}
+      ${cell('brand', p.brand, 100)}
+      ${cell('price', p.price, 65)}
+      ${cell('level_1', p.level_1, 95)}
+      ${cell('level_2', p.level_2, 95)}
+      ${cell('level_3', p.level_3, 95)}
+      ${cell('collection_description', p.collection_description, 110)}
+      ${boolCell('show_product', p.show_product)}
+      ${boolCell('sold_out', p.sold_out)}
+      ${boolCell('is_homepage', p.is_homepage)}
+    </tr>`;
+  }).join('');
+
+  updateCatSaveBtn();
+}
+
+function onCatCellEdit(id, field, value) {
+  if (!_catPending[id]) _catPending[id] = {};
+  _catPending[id][field] = value;
+  updateCatSaveBtn();
+  // Highlight the row
+  const p = _catRows.find(r => r.id === id);
+  if (p) {
+    // Re-render just this row's cells by updating bg via style on all cells
+    const allCells = document.querySelectorAll(`[data-id="${id}"]`);
+    allCells.forEach(el => {
+      const td = el.closest('td');
+      if (td) td.style.background = '#fffbe6';
+      if (_catPending[id][el.dataset.field] !== undefined)
+        el.style.borderColor = 'var(--primary)';
+    });
+  }
+}
+
+function toggleCatRow(id, checked) {
+  if (checked) _catSelected.add(id); else _catSelected.delete(id);
+  updateCatBulkBar();
+  // Update row highlight
+  const checkbox = document.querySelector(`[data-cat-id="${id}"]`);
+  if (checkbox) {
+    const tr = checkbox.closest('tr');
+    if (tr) tr.style.outline = checked ? '2px solid var(--primary)' : '';
+    if (tr) tr.style.outlineOffset = checked ? '-1px' : '';
+  }
+  document.getElementById('cat-select-all').indeterminate =
+    _catSelected.size > 0 && _catSelected.size < _catRows.length;
+  document.getElementById('cat-select-all').checked =
+    _catSelected.size === _catRows.length;
+}
+
+function toggleAllCatRows(checked) {
+  _catRows.forEach(p => {
+    if (checked) _catSelected.add(p.id); else _catSelected.delete(p.id);
+    const cb = document.querySelector(`[data-cat-id="${p.id}"]`);
+    if (cb) {
+      cb.checked = checked;
+      const tr = cb.closest('tr');
+      if (tr) { tr.style.outline = checked ? '2px solid var(--primary)' : ''; tr.style.outlineOffset = checked ? '-1px' : ''; }
+    }
+  });
+  updateCatBulkBar();
+}
+
+function updateCatBulkBar() {
+  const bar = document.getElementById('cat-bulk-bar');
+  const label = document.getElementById('cat-sel-label');
+  if (!bar) return;
+  if (_catSelected.size > 0) {
+    bar.style.display = 'flex';
+    label.textContent = `${_catSelected.size} selected`;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function updateCatSaveBtn() {
+  const count = Object.values(_catPending).filter(o => Object.keys(o).length > 0).length;
+  const btn = document.getElementById('catSaveBtn');
+  const num = document.getElementById('catChangesCount');
+  if (!btn) return;
+  if (count > 0) { btn.style.display = ''; num.textContent = count; }
+  else { btn.style.display = 'none'; }
+}
+
+function applyBulkCatalogueEdit(applyAll) {
+  const targets = applyAll ? _catRows.map(p => p.id) : [..._catSelected];
+  if (!targets.length) { alert('No rows selected.'); return; }
+
+  const bulkFields = [
+    { id: 'cb-level_1',              field: 'level_1',              type: 'text' },
+    { id: 'cb-level_2',              field: 'level_2',              type: 'text' },
+    { id: 'cb-level_3',              field: 'level_3',              type: 'text' },
+    { id: 'cb-collection_description', field: 'collection_description', type: 'text' },
+    { id: 'cb-show_product',         field: 'show_product',         type: 'bool' },
+    { id: 'cb-sold_out',             field: 'sold_out',             type: 'bool' },
+    { id: 'cb-is_homepage',          field: 'is_homepage',          type: 'bool' },
+  ];
+
+  const updates = {};
+  bulkFields.forEach(({ id, field, type }) => {
+    const el = document.getElementById(id);
+    if (!el || el.value === '') return;
+    updates[field] = type === 'bool' ? (el.value === 'true') : el.value;
+  });
+
+  if (!Object.keys(updates).length) {
+    alert('Fill in at least one field in the bulk bar before applying.'); return;
+  }
+
+  targets.forEach(id => {
+    if (!_catPending[id]) _catPending[id] = {};
+    Object.assign(_catPending[id], updates);
+  });
+
+  // Re-render to reflect changes
+  renderCatalogueTable();
+  // Re-tick selected rows
+  targets.forEach(id => {
+    const cb = document.querySelector(`[data-cat-id="${id}"]`);
+    if (cb) cb.checked = true;
+  });
+}
+
+async function saveCatalogueChanges() {
+  const ids = Object.keys(_catPending).filter(id => Object.keys(_catPending[id]).length > 0);
+  if (!ids.length) return;
+
+  const btn = document.getElementById('catSaveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span style="opacity:.7">Saving…</span>';
+
+  let ok = 0, fail = 0;
+  for (const id of ids) {
+    const body = _catPending[id];
+
+    // Map product_name → title, brand → vendor_brand_name for backend
+    const mapped = { ...body };
+    if ('product_name' in mapped) { mapped.title = mapped.product_name; delete mapped.product_name; }
+    if ('brand' in mapped) { mapped.vendor_brand_name = mapped.brand; delete mapped.brand; }
+
+    // Convert string booleans to actual booleans
+    ['show_product','sold_out','is_homepage','price_visible'].forEach(f => {
+      if (f in mapped && typeof mapped[f] === 'string') mapped[f] = mapped[f] === 'true';
+    });
+
+    try {
+      const res = await fetch(`${window.API_BASE_URL || ''}/api/catalogue/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mapped),
+      });
+      if (res.ok) {
+        // Update local row data
+        const p = _catRows.find(r => r.id === id);
+        if (p) Object.assign(p, body);
+        delete _catPending[id];
+        ok++;
+      } else {
+        fail++;
+      }
+    } catch { fail++; }
+  }
+
+  btn.disabled = false;
+  updateCatSaveBtn();
+  renderCatalogueTable();
+
+  const statusEl = document.getElementById('cat-status');
+  if (statusEl) {
+    statusEl.textContent = fail
+      ? `✓ ${ok} saved, ✗ ${fail} failed`
+      : `✓ ${ok} product${ok !== 1 ? 's' : ''} saved`;
+    statusEl.style.color = fail ? 'var(--danger)' : 'var(--accent)';
+    setTimeout(() => { if (statusEl) statusEl.style.color = 'var(--muted)'; }, 3000);
+  }
+}
 </script>
 </body>
 </html>

@@ -739,27 +739,6 @@ async def shopify_webhook(vendor_id: str, request: Request, background_tasks: Ba
 
 
 # ---------------------------------------------------------------------------
-# Product catalogue (production frontend)
-# ---------------------------------------------------------------------------
-
-@app.get("/api/catalogue")
-async def get_catalogue(
-    vendor_id: Optional[str] = None,
-    level_1:   Optional[str] = None,
-    limit:     int = 500,
-    offset:    int = 0,
-):
-    """Public endpoint: returns approved products for the production frontend."""
-    try:
-        products = await asyncio.get_event_loop().run_in_executor(
-            _executor, list_approved_products, vendor_id, level_1, limit, offset
-        )
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    return {"products": products, "count": len(products)}
-
-
-# ---------------------------------------------------------------------------
 # Admin product endpoints (pending queue + approve/reject)
 # ---------------------------------------------------------------------------
 
@@ -887,6 +866,7 @@ async def catalogue_endpoint(
     level_2:  Optional[str] = None,
     brand:    Optional[str] = None,
     homepage: Optional[bool] = None,
+    admin:    Optional[bool] = None,
     limit:    int = 500,
     offset:   int = 0,
 ):
@@ -894,6 +874,7 @@ async def catalogue_endpoint(
     Return approved products in the same shape as the Google Sheet CSV.
     Each product includes up to 4 asset_N_url / asset_N_type pairs for
     drop-in compatibility with existing frontends.
+    Pass admin=true to skip show_product filter (for admin editor).
     """
     try:
         rows = await asyncio.get_event_loop().run_in_executor(
@@ -911,7 +892,8 @@ async def catalogue_endpoint(
             continue
         if homepage is not None and bool(p.get("is_homepage")) != homepage:
             continue
-        if not p.get("show_product", True):
+        # Skip show_product filter in admin mode
+        if not admin and not p.get("show_product", True):
             continue
 
         # Flatten assets array into asset_N_url / asset_N_type columns
@@ -963,6 +945,45 @@ async def catalogue_endpoint(
         })
 
     return {"count": len(results), "products": results}
+
+
+class CatalogueUpdateRequest(BaseModel):
+    """Partial update for a catalogue product — all fields optional."""
+    title:                     Optional[str] = None
+    description:               Optional[str] = None
+    price:                     Optional[str] = None
+    vendor_brand_name:         Optional[str] = None
+    level_1:                   Optional[str] = None
+    level_2:                   Optional[str] = None
+    level_3:                   Optional[str] = None
+    level_4:                   Optional[str] = None
+    level_5:                   Optional[str] = None
+    level_6:                   Optional[str] = None
+    collection_description:    Optional[str] = None
+    collection_editorial_url:  Optional[str] = None
+    collection_editorial_type: Optional[str] = None
+    is_homepage:               Optional[bool] = None
+    price_visible:             Optional[bool] = None
+    min_order_qty:             Optional[int] = None
+    sold_out:                  Optional[bool] = None
+    show_product:              Optional[bool] = None
+
+
+@app.patch("/api/catalogue/{product_id}")
+async def patch_catalogue_product(product_id: str, req: CatalogueUpdateRequest):
+    """Partial update of an approved catalogue product."""
+    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update.")
+    try:
+        updated = await asyncio.get_event_loop().run_in_executor(
+            _executor, sb_approve_product, product_id, updates
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Product not found.")
+    return updated
 
 
 # ---------------------------------------------------------------------------
