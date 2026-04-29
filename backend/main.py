@@ -192,6 +192,15 @@ class ApproveProductRequest(BaseModel):
     level_3: Optional[str] = ""
     level_4: Optional[str] = ""
     level_5: Optional[str] = ""
+    level_6: Optional[str] = ""
+    collection_description: Optional[str] = ""
+    collection_editorial_url: Optional[str] = ""
+    collection_editorial_type: Optional[str] = "image"
+    is_homepage: Optional[bool] = False
+    price_visible: Optional[bool] = True
+    min_order_qty: Optional[int] = 1
+    sold_out: Optional[bool] = False
+    show_product: Optional[bool] = True
 
 
 # Sheet URL is fixed — stored in env var, not entered by users
@@ -816,19 +825,31 @@ async def approve_product_endpoint(product_id: str, req: ApproveProductRequest):
             uploaded_assets.append({"url": asset.url, "type": asset.type})
 
     update_data = {
-        "status":           "approved",
-        "approved_at":      datetime.now(timezone.utc).isoformat(),
-        "title":            req.product_name,
-        "description":      req.product_description,
-        "price":            req.price,
-        "assets":           uploaded_assets,
-        "imagekit_url":     first_ik_url,
-        "imagekit_file_id": first_ik_fid,
-        "level_1":          req.level_1 or "",
-        "level_2":          req.level_2 or "",
-        "level_3":          req.level_3 or "",
-        "level_4":          req.level_4 or "",
-        "level_5":          req.level_5 or "",
+        "status":                    "approved",
+        "approved_at":               datetime.now(timezone.utc).isoformat(),
+        "title":                     req.product_name,
+        "description":               req.product_description,
+        "price":                     req.price,
+        "assets":                    uploaded_assets,
+        "imagekit_url":              first_ik_url,
+        "imagekit_file_id":          first_ik_fid,
+        # Taxonomy
+        "level_1":                   req.level_1 or "",
+        "level_2":                   req.level_2 or "",
+        "level_3":                   req.level_3 or "",
+        "level_4":                   req.level_4 or "",
+        "level_5":                   req.level_5 or "",
+        "level_6":                   req.level_6 or "",
+        # Collection / editorial
+        "collection_description":    req.collection_description or "",
+        "collection_editorial_url":  req.collection_editorial_url or "",
+        "collection_editorial_type": req.collection_editorial_type or "image",
+        "is_homepage":               bool(req.is_homepage),
+        # Catalogue flags
+        "price_visible":             bool(req.price_visible if req.price_visible is not None else True),
+        "min_order_qty":             req.min_order_qty or 1,
+        "sold_out":                  bool(req.sold_out),
+        "show_product":              bool(req.show_product if req.show_product is not None else True),
     }
 
     try:
@@ -850,6 +871,98 @@ async def reject_product_endpoint(product_id: str):
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Public catalogue endpoint — replaces Google Sheet as the data source
+# GET /api/catalogue          → all approved, show_product=true products
+# GET /api/catalogue?level_1= → filter by level_1
+# GET /api/catalogue?brand=   → filter by brand
+# GET /api/catalogue?homepage=true → homepage products only
+# ---------------------------------------------------------------------------
+
+@app.get("/api/catalogue")
+async def catalogue_endpoint(
+    level_1:  Optional[str] = None,
+    level_2:  Optional[str] = None,
+    brand:    Optional[str] = None,
+    homepage: Optional[bool] = None,
+    limit:    int = 500,
+    offset:   int = 0,
+):
+    """
+    Return approved products in the same shape as the Google Sheet CSV.
+    Each product includes up to 4 asset_N_url / asset_N_type pairs for
+    drop-in compatibility with existing frontends.
+    """
+    try:
+        rows = await asyncio.get_event_loop().run_in_executor(
+            _executor, list_approved_products, None, level_1, limit, offset
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    results = []
+    for p in rows:
+        # Filter additional params not supported by list_approved_products
+        if level_2 and p.get("level_2", "") != level_2:
+            continue
+        if brand and (p.get("vendor_brand_name") or "").lower() != brand.lower():
+            continue
+        if homepage is not None and bool(p.get("is_homepage")) != homepage:
+            continue
+        if not p.get("show_product", True):
+            continue
+
+        # Flatten assets array into asset_N_url / asset_N_type columns
+        assets = p.get("assets") or []
+        if isinstance(assets, str):
+            try:
+                assets = json.loads(assets)
+            except Exception:
+                assets = []
+
+        asset_cols = {}
+        for i, a in enumerate(assets[:4], start=1):
+            asset_cols[f"asset_{i}_url"]  = a.get("url", "")
+            asset_cols[f"asset_{i}_type"] = a.get("type", "image")
+        # Pad missing slots
+        for i in range(len(assets) + 1, 5):
+            asset_cols[f"asset_{i}_url"]  = ""
+            asset_cols[f"asset_{i}_type"] = ""
+
+        results.append({
+            # Taxonomy
+            "level_1":                   p.get("level_1", ""),
+            "level_2":                   p.get("level_2", ""),
+            "level_3":                   p.get("level_3", ""),
+            "level_4":                   p.get("level_4", ""),
+            "level_5":                   p.get("level_5", ""),
+            "level_6":                   p.get("level_6", ""),
+            # Collection / editorial
+            "collection_description":    p.get("collection_description", ""),
+            "collection_editorial_url":  p.get("collection_editorial_url", ""),
+            "collection_editorial_type": p.get("collection_editorial_type", "image"),
+            "is_homepage":               p.get("is_homepage", False),
+            # Product
+            "product_name":              p.get("title", ""),
+            "product_description":       p.get("description", ""),
+            "brand":                     p.get("vendor_brand_name", ""),
+            "price":                     p.get("price", ""),
+            "price_visible":             p.get("price_visible", True),
+            "min_order_qty":             p.get("min_order_qty", 1),
+            "sold_out":                  p.get("sold_out", False),
+            "show_product":              p.get("show_product", True),
+            # Assets (up to 4, matching CSV column names)
+            **asset_cols,
+            # Extra fields useful for frontends
+            "id":                        p.get("id"),
+            "vendor_id":                 p.get("vendor_id"),
+            "imagekit_url":              p.get("imagekit_url", ""),
+            "approved_at":               p.get("approved_at", ""),
+        })
+
+    return {"count": len(results), "products": results}
 
 
 # ---------------------------------------------------------------------------

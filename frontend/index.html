@@ -1016,6 +1016,8 @@
       <div class="bulk-field"><label>Level 3</label><input type="text" placeholder="Sub category" data-field="level_3" /></div>
       <div class="bulk-field"><label>Level 4</label><input type="text" placeholder="Sub category" data-field="level_4" /></div>
       <div class="bulk-field"><label>Level 5</label><input type="text" placeholder="Sub category" data-field="level_5" /></div>
+      <div class="bulk-field"><label>Level 6</label><input type="text" placeholder="Sub category" data-field="level_6" /></div>
+      <div class="bulk-field"><label>Collection Description</label><input type="text" placeholder="e.g. Diwali" data-field="collection_description" /></div>
       <div class="bulk-field"><label>Price</label><input type="text" placeholder="e.g. 29.99" data-field="price" /></div>
       <button class="bulk-apply-btn" onclick="applyBulkFill('admin-grid')">Apply to All Products</button>
     </div>
@@ -1119,7 +1121,7 @@
   function applyBulkFill(gridId) {
     const bar = document.getElementById(gridId + '-bulkBar');
     if (!bar) return;
-    const fields = ['level_1', 'level_2', 'level_3', 'level_4', 'level_5', 'price'];
+    const fields = ['level_1', 'level_2', 'level_3', 'level_4', 'level_5', 'level_6', 'collection_description', 'price'];
     const updates = {};
     fields.forEach(f => {
       const input = bar.querySelector(`[data-field="${f}"]`);
@@ -1205,6 +1207,64 @@
                 <input type="text" id="l5-${pIdx}" placeholder="Sub category"
                   value="${escHtml(prod.level_5)}"
                   oninput="S().productState[${pIdx}].level_5=this.value" />
+              </div>
+              <div class="level-field">
+                <label>Level 6</label>
+                <input type="text" placeholder="Sub category"
+                  value="${escHtml(prod.level_6||'')}"
+                  oninput="S().productState[${pIdx}].level_6=this.value" />
+              </div>
+            </div>
+            <div class="levels-row" style="margin-top:8px">
+              <div class="level-field" style="grid-column:1/-1">
+                <label>Collection Description</label>
+                <input type="text" placeholder="e.g. Celebrating Special Relationships"
+                  value="${escHtml(prod.collection_description||'')}"
+                  oninput="S().productState[${pIdx}].collection_description=this.value" />
+              </div>
+            </div>
+            <div class="levels-row" style="margin-top:8px">
+              <div class="level-field" style="grid-column:1/span 2">
+                <label>Collection Editorial URL</label>
+                <input type="text" placeholder="https://ik.imagekit.io/..."
+                  value="${escHtml(prod.collection_editorial_url||'')}"
+                  oninput="S().productState[${pIdx}].collection_editorial_url=this.value" />
+              </div>
+              <div class="level-field">
+                <label>Editorial Type</label>
+                <select oninput="S().productState[${pIdx}].collection_editorial_type=this.value"
+                  style="width:100%;padding:7px 9px;border:1.5px solid var(--border);border-radius:6px;font-size:12px">
+                  <option value="image" ${(prod.collection_editorial_type||'image')==='image'?'selected':''}>image</option>
+                  <option value="video" ${(prod.collection_editorial_type||'')==='video'?'selected':''}>video</option>
+                </select>
+              </div>
+            </div>
+            <div class="levels-row" style="margin-top:8px;font-size:12px;align-items:center">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" ${prod.is_homepage?'checked':''}
+                  onchange="S().productState[${pIdx}].is_homepage=this.checked" />
+                Homepage feature
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" ${prod.price_visible!==false?'checked':''}
+                  onchange="S().productState[${pIdx}].price_visible=this.checked" />
+                Price visible
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" ${prod.sold_out?'checked':''}
+                  onchange="S().productState[${pIdx}].sold_out=this.checked" />
+                Sold out
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" ${prod.show_product!==false?'checked':''}
+                  onchange="S().productState[${pIdx}].show_product=this.checked" />
+                Show product
+              </label>
+              <div class="level-field" style="margin:0">
+                <label>Min order qty</label>
+                <input type="number" min="1" style="max-width:80px;padding:5px 8px"
+                  value="${prod.min_order_qty||1}"
+                  oninput="S().productState[${pIdx}].min_order_qty=parseInt(this.value)||1" />
               </div>
             </div>
           </div>
@@ -1400,10 +1460,21 @@
       .map((prod, pIdx) => {
         const sel = prod.assets.filter((_, ai) => S().selectedAssets.get(`${pIdx}_${ai}`));
         if (!sel.length) return null;
-        return { product_name: prod.product_name, price: prod.price, product_description: prod.product_description,
-          brand: prod.brand || '',
-          assets: sel, level_1: prod.level_1||'', level_2: prod.level_2||'',
-          level_3: prod.level_3||'', level_4: prod.level_4||'', level_5: prod.level_5||'' };
+        return {
+          product_name: prod.product_name, price: prod.price,
+          product_description: prod.product_description, brand: prod.brand || '',
+          assets: sel,
+          level_1: prod.level_1||'', level_2: prod.level_2||'', level_3: prod.level_3||'',
+          level_4: prod.level_4||'', level_5: prod.level_5||'', level_6: prod.level_6||'',
+          collection_description:    prod.collection_description||'',
+          collection_editorial_url:  prod.collection_editorial_url||'',
+          collection_editorial_type: prod.collection_editorial_type||'image',
+          is_homepage:    !!prod.is_homepage,
+          price_visible:  prod.price_visible !== false,
+          min_order_qty:  prod.min_order_qty || 1,
+          sold_out:       !!prod.sold_out,
+          show_product:   prod.show_product !== false,
+        };
       }).filter(Boolean);
 
     const btn = document.getElementById('pushBtn');
@@ -1910,7 +1981,9 @@
     tabStates.admin.productState = (result.products || []).map(p => ({
       ...p,
       assets:  p.assets.map(a => ({ ...a })),
-      level_1: '', level_2: '', level_3: '', level_4: '', level_5: '',
+      level_1: '', level_2: '', level_3: '', level_4: '', level_5: '', level_6: '',
+      collection_description: '', collection_editorial_url: '', collection_editorial_type: 'image',
+      is_homepage: false, price_visible: true, min_order_qty: 1, sold_out: false, show_product: true,
     }));
     tabStates.admin.selectedAssets.clear();
 
@@ -2025,7 +2098,9 @@
         product_description: row.description || row.product_description || '',
         brand:               (vendor && vendor.brand_name) || '',
         assets,
-        level_1: '', level_2: '', level_3: '', level_4: '', level_5: '',
+        level_1: '', level_2: '', level_3: '', level_4: '', level_5: '', level_6: '',
+        collection_description: '', collection_editorial_url: '', collection_editorial_type: 'image',
+        is_homepage: false, price_visible: true, min_order_qty: 1, sold_out: false, show_product: true,
       });
     }
     return products;
