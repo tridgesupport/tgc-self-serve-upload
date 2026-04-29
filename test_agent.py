@@ -67,16 +67,20 @@ class TestAgent:
         return passed
 
     def _get(self, path: str, **kwargs):
-        return requests.get(f"{self.base}{path}", timeout=self.timeout, **kwargs)
+        kwargs.setdefault("timeout", self.timeout)
+        return requests.get(f"{self.base}{path}", **kwargs)
 
     def _post(self, path: str, **kwargs):
-        return requests.post(f"{self.base}{path}", timeout=self.timeout, **kwargs)
+        kwargs.setdefault("timeout", self.timeout)
+        return requests.post(f"{self.base}{path}", **kwargs)
 
     def _patch(self, path: str, **kwargs):
-        return requests.patch(f"{self.base}{path}", timeout=self.timeout, **kwargs)
+        kwargs.setdefault("timeout", self.timeout)
+        return requests.patch(f"{self.base}{path}", **kwargs)
 
     def _put(self, path: str, **kwargs):
-        return requests.put(f"{self.base}{path}", timeout=self.timeout, **kwargs)
+        kwargs.setdefault("timeout", self.timeout)
+        return requests.put(f"{self.base}{path}", **kwargs)
 
     # ── individual tests ──────────────────────────────────────────────────────
 
