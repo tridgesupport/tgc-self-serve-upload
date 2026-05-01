@@ -350,3 +350,9 @@ def get_session_user(token: str) -> Optional[dict]:
 def delete_session(token: str) -> None:
     with get_db() as conn:
         conn.execute("DELETE FROM sessions WHERE token=?", (token,))
+
+
+def update_password(user_id: str, new_password: str) -> None:
+    pw_hash = hash_password(new_password)
+    with get_db() as conn:
+        conn.execute("UPDATE users SET password_hash=? WHERE id=?", (pw_hash, user_id))

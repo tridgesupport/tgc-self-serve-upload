@@ -47,7 +47,7 @@ from database import (
     set_last_pulled, update_webhook_ids, get_webhook_ids,
     create_user, get_user_by_email, get_user_by_id,
     create_session, get_session_user, delete_session,
-    hash_password, verify_password,
+    hash_password, verify_password, update_password,
 )
 from scraper import detect_and_scrape, scrape_shopify, scrape_shopify_authenticated, clean_html
 from supabase_client import (
@@ -961,6 +961,11 @@ class AuthLoginRequest(BaseModel):
     password: str
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class CatalogueUpdateRequest(BaseModel):
     """Partial update for a catalogue product — all fields optional."""
     title:                     Optional[str] = None
@@ -1073,6 +1078,24 @@ async def auth_me(request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated.")
     return {"id": user["id"], "email": user["email"], "role": user["role"], "vendor_id": user.get("vendor_id")}
+
+
+@app.post("/api/auth/change-password")
+async def change_password(request: Request, req: ChangePasswordRequest):
+    user = _current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters.")
+    # For admin: allow matching against plain ADMIN_PASSWORD (first-time setup)
+    stored = user.get("password_hash", "")
+    valid = verify_password(req.current_password, stored)
+    if not valid and user.get("role") == "admin" and req.current_password == ADMIN_PASSWORD:
+        valid = True
+    if not valid:
+        raise HTTPException(status_code=401, detail="Current password is incorrect.")
+    update_password(user["id"], req.new_password)
+    return {"ok": True}
 
 
 @app.get("/api/vendors/{vendor_id}")

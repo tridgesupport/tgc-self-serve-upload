@@ -1010,8 +1010,46 @@
 </head>
 <body>
 
+<!-- ══════════ FULL-PAGE AUTH GATE ══════════ -->
+<div id="auth-gate-page" style="position:fixed;inset:0;z-index:800;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px">
+  <div style="width:100%;max-width:420px">
+    <!-- Branding -->
+    <div style="text-align:center;margin-bottom:28px">
+      <h1 style="font-size:1.6rem;font-weight:900;color:var(--accent);letter-spacing:-.5px;margin-bottom:4px">The Gift Collective</h1>
+      <p style="font-size:.88rem;color:var(--muted)">Vendor Portal — please sign in to continue</p>
+    </div>
+    <!-- Card -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,.07)">
+      <!-- Tab bar -->
+      <div class="login-tab-bar" style="margin-bottom:24px">
+        <button id="gate-tab-login"    class="active" onclick="showGateTab('login')">Sign In</button>
+        <button id="gate-tab-register" onclick="showGateTab('register')">Create Account</button>
+      </div>
+      <!-- Login form -->
+      <div id="gate-form-login">
+        <div class="login-field"><label>Email</label><input id="gate-email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+        <div class="login-field"><label>Password</label><input id="gate-password" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')gateLogin()"></div>
+        <p id="gate-login-error" class="login-error"></p>
+        <button class="login-submit-btn" id="gate-login-btn" onclick="gateLogin()">Sign In</button>
+      </div>
+      <!-- Register form -->
+      <div id="gate-form-register" style="display:none">
+        <div class="login-field"><label>Email</label><input id="gate-reg-email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+        <div class="login-field"><label>Password <span style="font-weight:400;color:var(--muted)">(min 8 chars)</span></label><input id="gate-reg-password" type="password" placeholder="Choose a password" onkeydown="if(event.key==='Enter')gateRegister()"></div>
+        <div class="login-field"><label>Vendor ID <span style="font-weight:400;color:var(--muted)">(if you have one)</span></label><input id="gate-reg-vendor-id" type="text" placeholder="e.g. TGC-ABCDE"></div>
+        <p id="gate-reg-error" class="login-error"></p>
+        <button class="login-submit-btn" id="gate-reg-btn" onclick="gateRegister()">Create Account</button>
+      </div>
+    </div>
+    <p style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:16px">
+      <a onclick="openPage('terms-of-service')" style="cursor:pointer;color:var(--muted)">Terms of Service</a> ·
+      <a onclick="openPage('privacy-policy')" style="cursor:pointer;color:var(--muted)">Privacy Policy</a>
+    </p>
+  </div>
+</div>
+
 <!-- ── Sticky top bar (header + tabs) ── -->
-<div id="stickyTop">
+<div id="stickyTop" style="display:none">
   <header>
     <h1>TGC Upload</h1>
     <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
@@ -1039,7 +1077,10 @@
   <div class="account-section">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <h2 style="margin:0">My Account</h2>
-      <button onclick="saveAccountProfile()" class="btn-primary" id="acct-save-btn">Save Changes</button>
+      <div style="display:flex;gap:8px">
+        <button onclick="showChangePasswordModal('vendor')" style="font-size:.82rem;padding:7px 14px;background:var(--bg);border:1px solid var(--border);border-radius:7px;cursor:pointer;color:var(--text)">Change Password</button>
+        <button onclick="saveAccountProfile()" class="btn-primary" id="acct-save-btn">Save Changes</button>
+      </div>
     </div>
     <p id="acct-save-status" style="font-size:.82rem;min-height:18px;color:var(--accent);margin-bottom:10px"></p>
     <div id="account-form-root">
@@ -1072,6 +1113,7 @@
       <span id="admin-vendor-count" style="font-size:.82rem;color:var(--muted)"></span>
       <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
         <span id="admin-logged-user" style="font-size:.8rem;color:var(--muted)"></span>
+        <button onclick="showChangePasswordModal('admin')" style="font-size:.8rem;padding:5px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text)">Change Password</button>
         <button onclick="adminGateLogout()" style="font-size:.8rem;padding:5px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text)">Logout</button>
       </div>
     </div>
@@ -1251,6 +1293,19 @@
       <p id="rf-error" class="login-error"></p>
       <button class="login-submit-btn" onclick="doRegister()">Create Account</button>
     </div>
+  </div>
+</div>
+
+<!-- ── Change Password Modal ── -->
+<div id="chpw-modal-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);align-items:center;justify-content:center">
+  <div class="login-modal-box" style="max-width:360px">
+    <button class="login-modal-close" onclick="closeChangePasswordModal()">×</button>
+    <h2>Change Password</h2>
+    <div class="login-field"><label>Current Password</label><input id="chpw-current" type="password" placeholder="Current password"></div>
+    <div class="login-field"><label>New Password <span style="font-weight:400;color:var(--muted)">(min 8 chars)</span></label><input id="chpw-new" type="password" placeholder="New password"></div>
+    <div class="login-field"><label>Confirm New Password</label><input id="chpw-confirm" type="password" placeholder="Confirm new password" onkeydown="if(event.key==='Enter')submitChangePassword()"></div>
+    <p id="chpw-error" class="login-error"></p>
+    <button class="login-submit-btn" onclick="submitChangePassword()">Update Password</button>
   </div>
 </div>
 
@@ -3330,8 +3385,10 @@ function VendorRegistration() {
   );
 }
 
-// Mount into tab panel
-ReactDOM.createRoot(document.getElementById('vendor-reg-root')).render(<VendorRegistration />);
+// Mount function — called after auth so we can pre-fill from localStorage first
+window.mountVendorReg = function() {
+  ReactDOM.createRoot(document.getElementById('vendor-reg-root')).render(<VendorRegistration />);
+};
 </script>
 
 <!-- ══════════ Page Modal ══════════ -->
@@ -3799,62 +3856,358 @@ async function saveCatalogueChanges() {
 
 <script>
 // ── Auth ────────────────────────────────────────────────────────────────────
-const AUTH_KEY   = 'tgc_token';
-const USER_KEY   = 'tgc_user';
-const API        = window.API_BASE_URL || '';
+const AUTH_KEY = 'tgc_token';
+const USER_KEY = 'tgc_user';
+const API      = window.API_BASE_URL || '';
+const REG_KEY  = 'tgc_vendor_reg_v1';
 
-function getToken()   { return localStorage.getItem(AUTH_KEY); }
-function getUser()    { try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch { return null; } }
-function clearAuth()  { localStorage.removeItem(AUTH_KEY); localStorage.removeItem(USER_KEY); }
+function getToken() { return localStorage.getItem(AUTH_KEY); }
+function getUser()  { try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch { return null; } }
+function clearAuth(){ localStorage.removeItem(AUTH_KEY); localStorage.removeItem(USER_KEY); }
 
-function applyAuthState(user) {
+// ── Auth gate (full-page) ────────────────────────────────────────────────────
+function showGate() {
+  document.getElementById('auth-gate-page').style.display = 'flex';
+  document.getElementById('stickyTop').style.display      = 'none';
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+}
+
+function hideGate() {
+  document.getElementById('auth-gate-page').style.display = 'none';
+  document.getElementById('stickyTop').style.display      = '';
+  // Only show active tab panel
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    p.style.display = p.classList.contains('active') ? '' : 'none';
+  });
+}
+
+function showGateTab(tab) {
+  document.getElementById('gate-form-login').style.display    = tab === 'login'    ? '' : 'none';
+  document.getElementById('gate-form-register').style.display = tab === 'register' ? '' : 'none';
+  document.getElementById('gate-tab-login').className    = tab === 'login'    ? 'active' : '';
+  document.getElementById('gate-tab-register').className = tab === 'register' ? 'active' : '';
+}
+
+async function gateLogin() {
+  const email    = document.getElementById('gate-email').value.trim();
+  const password = document.getElementById('gate-password').value;
+  const errEl    = document.getElementById('gate-login-error');
+  const btn      = document.getElementById('gate-login-btn');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const res  = await fetch(`${API}/api/auth/login`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email, password }),
+    });
+    const json = await res.json();
+    if (!res.ok) { errEl.textContent = json.detail || 'Invalid credentials.'; btn.disabled=false; btn.textContent='Sign In'; return; }
+    localStorage.setItem(AUTH_KEY, json.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(json.user));
+    await onLoginSuccess(json.user);
+  } catch { errEl.textContent = 'Network error. Please try again.'; btn.disabled=false; btn.textContent='Sign In'; }
+}
+
+async function gateRegister() {
+  const email    = document.getElementById('gate-reg-email').value.trim();
+  const password = document.getElementById('gate-reg-password').value;
+  const vendorId = document.getElementById('gate-reg-vendor-id').value.trim();
+  const errEl    = document.getElementById('gate-reg-error');
+  const btn      = document.getElementById('gate-reg-btn');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
+  btn.disabled = true; btn.textContent = 'Creating account…';
+  try {
+    const res  = await fetch(`${API}/api/auth/register`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email, password, vendor_id: vendorId || null }),
+    });
+    const json = await res.json();
+    if (!res.ok) { errEl.textContent = json.detail || 'Registration failed.'; btn.disabled=false; btn.textContent='Create Account'; return; }
+    localStorage.setItem(AUTH_KEY, json.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(json.user));
+    await onLoginSuccess(json.user);
+  } catch { errEl.textContent = 'Network error.'; btn.disabled=false; btn.textContent='Create Account'; }
+}
+
+// Called after any successful login/register
+async function onLoginSuccess(user) {
+  hideGate();
+  applyHeaderState(user);
+
+  if (user.role === 'admin') {
+    // Show admin panel
+    document.getElementById('admin-gate').style.display    = 'none';
+    document.getElementById('admin-content').style.display = '';
+    const lbl = document.getElementById('admin-logged-user');
+    if (lbl) lbl.textContent = user.email;
+    if (window.switchTab) window.switchTab('admin');
+    loadVendors();
+    return;
+  }
+
+  // Vendor: pre-fill registration form from their saved data, then show reg tab
+  const acctBtn = document.getElementById('tab-btn-account');
+  if (acctBtn) acctBtn.style.display = '';
+
+  if (user.vendor_id) {
+    // Fetch and pre-fill their existing registration
+    try {
+      const res = await fetch(`${API}/api/vendors/${encodeURIComponent(user.vendor_id)}`);
+      if (res.ok) {
+        const vendor = await res.json();
+        prefillRegistrationFromVendor(vendor);
+      }
+    } catch {}
+  }
+
+  // Mount the React wizard and show the vendor-reg tab
+  if (window.mountVendorReg) window.mountVendorReg();
+  if (window.switchTab) window.switchTab('vendor-reg');
+}
+
+// Convert vendor API response → localStorage reg format
+function prefillRegistrationFromVendor(v) {
+  const existing = (() => { try { return JSON.parse(localStorage.getItem(REG_KEY)) || {}; } catch { return {}; } })();
+  const merged = {
+    ...existing,
+    vendorId:             v.id,
+    brandName:            v.brand_name || existing.brandName,
+    storeUrl:             v.store_url  || existing.storeUrl,
+    plan:                 v.plan       || existing.plan,
+    logoUrl:              v.logo_url   || existing.logoUrl,
+    currency:             v.currency   || existing.currency   || 'INR',
+    contactName:          v.contact_name  || existing.contactName,
+    contactEmail:         v.contact_email || existing.contactEmail,
+    contactPhone:         v.contact_phone || existing.contactPhone,
+    notifyEmail:          v.notify_email  || existing.notifyEmail,
+    pan:                  v.pan           || existing.pan,
+    gst:                  v.gst           || existing.gst,
+    businessType:         v.business_type || existing.businessType,
+    storefrontToken:      v.storefront_token || existing.storefrontToken,
+    adminToken:           v.admin_token      || existing.adminToken,
+    webhookSecret:        v.webhook_secret   || existing.webhookSecret,
+    apiVersion:           v.api_version      || existing.apiVersion || '2025-04',
+    stripeConnected:      v.stripe_connected || false,
+    stripeAccountId:      v.stripe_account_id || existing.stripeAccountId,
+    accountName:          v.account_name  || existing.accountName,
+    bankName:             v.bank_name     || existing.bankName,
+    accountNumber:        v.account_number || existing.accountNumber,
+    ifsc:                 v.ifsc          || existing.ifsc,
+    accountType:          v.account_type  || existing.accountType,
+    categories:           v.categories    || existing.categories || [],
+    skuCount:             v.sku_count     || existing.skuCount,
+    priceRange:           v.price_range   || existing.priceRange,
+    oosMode:              v.oos_mode      || existing.oosMode || 'hide',
+    acceptsCustomOrders:  v.accepts_custom_orders || false,
+    processingDays:       v.processing_days || existing.processingDays || '3',
+    warehouseCities:      v.warehouse_cities || existing.warehouseCities || [],
+    shippingRegion:       v.shipping_region  || existing.shippingRegion,
+    acceptsReturns:       v.accepts_returns  || false,
+    returnDays:           v.return_days      || existing.returnDays,
+    lowStockAlerts:       v.low_stock_alerts || false,
+    fullLegalName:        v.full_legal_name  || existing.fullLegalName,
+    billingStreet:        v.billing_street   || existing.billingStreet,
+    billingCity:          v.billing_city     || existing.billingCity,
+    billingState:         v.billing_state    || existing.billingState,
+    billingPin:           v.billing_pin      || existing.billingPin,
+    billingCountry:       v.billing_country  || existing.billingCountry || 'India',
+    catalogueSource:      v.catalogue_source || existing.catalogueSource,
+    driveUrl:             v.drive_url        || existing.driveUrl,
+    submitted:            v.status === 'approved' || v.status === 'active',
+  };
+  localStorage.setItem(REG_KEY, JSON.stringify(merged));
+}
+
+function applyHeaderState(user) {
   const loginBtn  = document.getElementById('header-login-btn');
   const logoutBtn = document.getElementById('header-logout-btn');
   const userLabel = document.getElementById('header-user-label');
-  const acctBtn   = document.getElementById('tab-btn-account');
-
   if (user) {
     if (loginBtn)  loginBtn.style.display  = 'none';
     if (logoutBtn) logoutBtn.style.display = '';
     if (userLabel) userLabel.textContent   = user.email;
-    if (acctBtn && user.role === 'vendor') acctBtn.style.display = '';
-    // Unlock admin tab
-    if (user.role === 'admin') {
-      document.getElementById('admin-gate').style.display    = 'none';
-      document.getElementById('admin-content').style.display = '';
-      const lbl = document.getElementById('admin-logged-user');
-      if (lbl) lbl.textContent = user.email;
-    }
   } else {
     if (loginBtn)  loginBtn.style.display  = '';
     if (logoutBtn) logoutBtn.style.display = 'none';
     if (userLabel) userLabel.textContent   = '';
-    if (acctBtn)   acctBtn.style.display   = 'none';
-    document.getElementById('admin-gate').style.display    = '';
-    document.getElementById('admin-content').style.display = 'none';
   }
 }
 
-window.onAuthChange = function(user) {
-  applyAuthState(user);
-};
-
-async function initAuth() {
+async function doLogout() {
   const token = getToken();
-  if (!token) { applyAuthState(null); return; }
-  try {
-    const res = await fetch(`${API}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) {
-      const user = await res.json();
-      localStorage.setItem(USER_KEY, JSON.stringify(user));
-      applyAuthState(user);
-    } else {
-      clearAuth(); applyAuthState(null);
-    }
-  } catch { applyAuthState(getUser()); }
+  if (token) await fetch(`${API}/api/auth/logout`, { method:'POST', headers:{Authorization:`Bearer ${token}`} }).catch(()=>{});
+  clearAuth();
+  applyHeaderState(null);
+  document.getElementById('admin-gate').style.display    = '';
+  document.getElementById('admin-content').style.display = 'none';
+  const acctBtn = document.getElementById('tab-btn-account');
+  if (acctBtn) acctBtn.style.display = 'none';
+  showGate();
 }
 
-// Login modal
+// header-logout-btn calls doLogout (already wired above)
+function adminGateLogout() { doLogout(); }
+
+// ── Admin inline gate (still in admin tab for direct navigation) ─────────────
+async function adminGateLogin() {
+  const email    = document.getElementById('admin-gate-email').value.trim();
+  const password = document.getElementById('admin-gate-password').value;
+  const errEl    = document.getElementById('admin-gate-error');
+  errEl.textContent = '';
+  try {
+    const res  = await fetch(`${API}/api/auth/login`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email, password }),
+    });
+    const json = await res.json();
+    if (!res.ok || json.user?.role !== 'admin') {
+      errEl.textContent = json.detail || 'Invalid admin credentials.'; return;
+    }
+    localStorage.setItem(AUTH_KEY, json.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(json.user));
+    await onLoginSuccess(json.user);
+  } catch { errEl.textContent = 'Network error.'; }
+}
+
+// ── Admin Sub-tabs ──────────────────────────────────────────────────────────
+function switchAdminSubTab(name) {
+  ['vendors','catalogue','pages'].forEach(t => {
+    const el  = document.getElementById(`admin-stab-${t}`);
+    const btn = document.querySelector(`.admin-stab[data-stab="${t}"]`);
+    if (el)  el.style.display  = t === name ? '' : 'none';
+    if (btn) btn.className = t === name ? 'admin-stab active' : 'admin-stab';
+  });
+  if (name === 'catalogue') loadCatalogueEditor();
+  if (name === 'pages' && !_pagesLoaded) loadPagesEditor();
+}
+
+// ── Change Password ─────────────────────────────────────────────────────────
+function showChangePasswordModal() {
+  const el = document.getElementById('chpw-modal-overlay');
+  el.style.display = 'flex';
+  document.getElementById('chpw-current').value  = '';
+  document.getElementById('chpw-new').value      = '';
+  document.getElementById('chpw-confirm').value  = '';
+  document.getElementById('chpw-error').textContent = '';
+}
+function closeChangePasswordModal() {
+  document.getElementById('chpw-modal-overlay').style.display = 'none';
+}
+async function submitChangePassword() {
+  const cur     = document.getElementById('chpw-current').value;
+  const nw      = document.getElementById('chpw-new').value;
+  const confirm = document.getElementById('chpw-confirm').value;
+  const errEl   = document.getElementById('chpw-error');
+  errEl.textContent = '';
+  if (!cur || !nw || !confirm) { errEl.textContent = 'All fields are required.'; return; }
+  if (nw !== confirm)          { errEl.textContent = 'New passwords do not match.'; return; }
+  if (nw.length < 8)           { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+  try {
+    const res  = await fetch(`${API}/api/auth/change-password`, {
+      method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${getToken()}`},
+      body: JSON.stringify({ current_password: cur, new_password: nw }),
+    });
+    const json = await res.json();
+    if (!res.ok) { errEl.textContent = json.detail || 'Failed to change password.'; return; }
+    errEl.style.color = 'var(--accent)';
+    errEl.textContent = '✓ Password updated successfully.';
+    setTimeout(closeChangePasswordModal, 1500);
+  } catch { errEl.textContent = 'Network error.'; }
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeChangePasswordModal();
+    closeLoginModal();
+  }
+});
+
+// ── My Account (vendor profile editor) ─────────────────────────────────────
+let _acctVendor = null;
+
+async function loadAccountProfile() {
+  const user = getUser();
+  if (!user || user.role !== 'vendor') return;
+  if (!user.vendor_id) {
+    document.getElementById('account-form-root').innerHTML =
+      '<p style="color:var(--muted)">No vendor registration linked. Submit the registration form to create one.</p>';
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/api/vendors/${encodeURIComponent(user.vendor_id)}`, {
+      headers: { Authorization: `Bearer ${getToken()}` }
+    });
+    if (!res.ok) throw new Error();
+    _acctVendor = await res.json();
+    renderAccountForm();
+  } catch {
+    document.getElementById('account-form-root').innerHTML =
+      '<p style="color:var(--danger)">Failed to load profile. Please refresh.</p>';
+  }
+}
+
+function afField(key, label, value, type) {
+  const v = (value || '').toString().replace(/"/g, '&quot;');
+  return `<div class="account-field"><label>${label}</label><input type="${type||'text'}" data-key="${key}" value="${v}"></div>`;
+}
+
+function renderAccountForm() {
+  const v = _acctVendor;
+  if (!v) return;
+  document.getElementById('account-form-root').innerHTML = `
+    <div class="account-field-group">
+      <h3>Brand</h3>
+      ${afField('brand_name','Brand Name',v.brand_name)}
+      ${afField('store_url','Store URL',v.store_url,'url')}
+      ${afField('logo_url','Logo URL',v.logo_url,'url')}
+    </div>
+    <div class="account-field-group">
+      <h3>Contact</h3>
+      ${afField('contact_name','Contact Name',v.contact_name)}
+      ${afField('contact_email','Email',v.contact_email,'email')}
+      ${afField('contact_phone','Phone',v.contact_phone,'tel')}
+      ${afField('notify_email','Notify Email',v.notify_email,'email')}
+    </div>
+    <div class="account-field-group">
+      <h3>Business</h3>
+      ${afField('full_legal_name','Legal Name',v.full_legal_name)}
+      ${afField('billing_street','Street',v.billing_street)}
+      ${afField('billing_city','City',v.billing_city)}
+      ${afField('billing_state','State',v.billing_state)}
+      ${afField('billing_pin','PIN',v.billing_pin)}
+      ${afField('billing_country','Country',v.billing_country)}
+    </div>
+    <div class="account-field-group">
+      <h3>Catalogue</h3>
+      ${afField('sku_count','SKU Count',v.sku_count)}
+      ${afField('price_range','Price Range',v.price_range)}
+    </div>
+    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">
+      Vendor ID: <code style="font-family:monospace;color:var(--accent)">${v.id}</code> &nbsp;|&nbsp;
+      Status: <strong style="color:${v.status==='active'?'var(--accent)':'var(--muted)'}">${v.status}</strong>
+    </p>`;
+}
+
+async function saveAccountProfile() {
+  if (!_acctVendor) return;
+  const inputs = document.querySelectorAll('#account-form-root input[data-key]');
+  const updates = {};
+  inputs.forEach(i => { updates[i.dataset.key] = i.value; });
+  const statusEl = document.getElementById('acct-save-status');
+  statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--muted)';
+  try {
+    const res = await fetch(`${API}/api/vendors/${encodeURIComponent(_acctVendor.id)}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json', Authorization:`Bearer ${getToken()}`},
+      body: JSON.stringify(updates),
+    });
+    if (res.ok) { _acctVendor = await res.json(); statusEl.textContent = '✓ Saved'; statusEl.style.color = 'var(--accent)'; }
+    else        { statusEl.textContent = '✗ Save failed'; statusEl.style.color = 'var(--danger)'; }
+  } catch { statusEl.textContent = '✗ Network error'; statusEl.style.color = 'var(--danger)'; }
+  setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+}
+
+// ── Legacy login modal (still used from success screen "create account" step) ─
 function openLoginModal(tab) {
   document.getElementById('login-modal-overlay').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -3865,192 +4218,66 @@ function closeLoginModal() {
   document.body.style.overflow = '';
 }
 function showLoginTab(tab) {
-  document.getElementById('lform-login').style.display    = tab === 'login'    ? '' : 'none';
-  document.getElementById('lform-register').style.display = tab === 'register' ? '' : 'none';
-  document.getElementById('ltab-login').className    = tab === 'login'    ? 'active' : '';
-  document.getElementById('ltab-register').className = tab === 'register' ? 'active' : '';
-  document.getElementById('login-modal-title').textContent = tab === 'login' ? 'Welcome back' : 'Create your account';
+  document.getElementById('lform-login').style.display    = tab==='login'    ? '' : 'none';
+  document.getElementById('lform-register').style.display = tab==='register' ? '' : 'none';
+  document.getElementById('ltab-login').className    = tab==='login'    ? 'active' : '';
+  document.getElementById('ltab-register').className = tab==='register' ? 'active' : '';
+  document.getElementById('login-modal-title').textContent = tab==='login' ? 'Welcome back' : 'Create your account';
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLoginModal(); });
-
 async function doLogin() {
-  const email    = document.getElementById('lf-email').value.trim();
-  const password = document.getElementById('lf-password').value;
-  const errEl    = document.getElementById('lf-error');
+  const email = document.getElementById('lf-email').value.trim();
+  const pw    = document.getElementById('lf-password').value;
+  const errEl = document.getElementById('lf-error');
   errEl.textContent = '';
-  if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
+  if (!email || !pw) { errEl.textContent = 'Please enter email and password.'; return; }
   try {
-    const res  = await fetch(`${API}/api/auth/login`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    const res  = await fetch(`${API}/api/auth/login`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email,password:pw}) });
     const json = await res.json();
     if (!res.ok) { errEl.textContent = json.detail || 'Login failed.'; return; }
     localStorage.setItem(AUTH_KEY, json.token);
     localStorage.setItem(USER_KEY, JSON.stringify(json.user));
     closeLoginModal();
-    applyAuthState(json.user);
-    if (json.user.role === 'admin') {
-      if (window.switchTab) window.switchTab('admin');
-    } else {
-      if (window.switchTab) window.switchTab('account');
-    }
-  } catch { errEl.textContent = 'Network error. Please try again.'; }
+    await onLoginSuccess(json.user);
+  } catch { errEl.textContent = 'Network error.'; }
 }
-
 async function doRegister() {
   const email    = document.getElementById('rf-email').value.trim();
-  const password = document.getElementById('rf-password').value;
+  const pw       = document.getElementById('rf-password').value;
   const vendorId = document.getElementById('rf-vendor-id').value.trim();
   const errEl    = document.getElementById('rf-error');
   errEl.textContent = '';
-  if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
+  if (!email || !pw) { errEl.textContent = 'Please enter email and password.'; return; }
   try {
-    const res  = await fetch(`${API}/api/auth/register`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, vendor_id: vendorId || null }),
-    });
+    const res  = await fetch(`${API}/api/auth/register`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email,password:pw,vendor_id:vendorId||null}) });
     const json = await res.json();
-    if (!res.ok) { errEl.textContent = json.detail || 'Registration failed.'; return; }
+    if (!res.ok) { errEl.textContent = json.detail || 'Failed.'; return; }
     localStorage.setItem(AUTH_KEY, json.token);
     localStorage.setItem(USER_KEY, JSON.stringify(json.user));
     closeLoginModal();
-    applyAuthState(json.user);
-    if (window.switchTab) window.switchTab('account');
-  } catch { errEl.textContent = 'Network error. Please try again.'; }
-}
-
-async function doLogout() {
-  const token = getToken();
-  if (token) {
-    await fetch(`${API}/api/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
-  }
-  clearAuth();
-  applyAuthState(null);
-  if (window.switchTab) window.switchTab('vendor-reg');
-}
-
-// Admin gate login (inline in admin tab)
-async function adminGateLogin() {
-  const email    = document.getElementById('admin-gate-email').value.trim();
-  const password = document.getElementById('admin-gate-password').value;
-  const errEl    = document.getElementById('admin-gate-error');
-  errEl.textContent = '';
-  try {
-    const res  = await fetch(`${API}/api/auth/login`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const json = await res.json();
-    if (!res.ok || json.user?.role !== 'admin') {
-      errEl.textContent = json.detail || 'Invalid admin credentials.'; return;
-    }
-    localStorage.setItem(AUTH_KEY, json.token);
-    localStorage.setItem(USER_KEY, JSON.stringify(json.user));
-    applyAuthState(json.user);
-    loadVendors();
+    await onLoginSuccess(json.user);
   } catch { errEl.textContent = 'Network error.'; }
 }
 
-function adminGateLogout() {
-  doLogout();
-}
-
-// ── Admin Sub-tabs ──────────────────────────────────────────────────────────
-function switchAdminSubTab(name) {
-  ['vendors', 'catalogue', 'pages'].forEach(t => {
-    const el  = document.getElementById(`admin-stab-${t}`);
-    const btn = document.querySelector(`.admin-stab[data-stab="${t}"]`);
-    if (el)  el.style.display  = t === name ? '' : 'none';
-    if (btn) btn.className = t === name ? 'admin-stab active' : 'admin-stab';
-  });
-  if (name === 'catalogue') loadCatalogueEditor();
-  if (name === 'pages')     { if (!_pagesLoaded) loadPagesEditor(); }
-}
-
-// ── My Account (vendor profile editor) ─────────────────────────────────────
-let _acctVendor = null;
-
-async function loadAccountProfile() {
-  const user = getUser();
-  if (!user || user.role !== 'vendor' || !user.vendor_id) {
-    document.getElementById('account-form-root').innerHTML =
-      '<p style="color:var(--muted)">No vendor registration linked to your account. Complete the registration form first.</p>';
-    return;
-  }
-  try {
-    const res = await fetch(`${API}/api/vendors/${encodeURIComponent(user.vendor_id)}`, {
-      headers: { Authorization: `Bearer ${getToken()}` }
-    });
-    if (!res.ok) throw new Error('Not found');
-    _acctVendor = await res.json();
-    renderAccountForm();
-  } catch {
-    document.getElementById('account-form-root').innerHTML =
-      '<p style="color:var(--danger)">Failed to load your profile. Please refresh.</p>';
-  }
-}
-
-function afField(key, label, value, type) {
-  const v = (value || '').toString().replace(/"/g, '&quot;');
-  const inputType = type || 'text';
-  return `<div class="account-field"><label>${label}</label><input type="${inputType}" data-key="${key}" value="${v}"></div>`;
-}
-
-function renderAccountForm() {
-  const v = _acctVendor;
-  if (!v) return;
-  document.getElementById('account-form-root').innerHTML = `
-    <div class="account-field-group">
-      <h3>Brand</h3>
-      ${afField('brand_name',    'Brand Name',    v.brand_name)}
-      ${afField('store_url',     'Store URL',     v.store_url,   'url')}
-      ${afField('logo_url',      'Logo URL',      v.logo_url,    'url')}
-    </div>
-    <div class="account-field-group">
-      <h3>Contact</h3>
-      ${afField('contact_name',  'Contact Name',  v.contact_name)}
-      ${afField('contact_email', 'Email',         v.contact_email, 'email')}
-      ${afField('contact_phone', 'Phone',         v.contact_phone, 'tel')}
-      ${afField('notify_email',  'Notify Email',  v.notify_email,  'email')}
-    </div>
-    <div class="account-field-group">
-      <h3>Business</h3>
-      ${afField('full_legal_name', 'Legal Name',  v.full_legal_name)}
-      ${afField('billing_city',    'City',        v.billing_city)}
-      ${afField('billing_state',   'State',       v.billing_state)}
-      ${afField('billing_country', 'Country',     v.billing_country)}
-    </div>
-    <div class="account-field-group">
-      <h3>Catalogue</h3>
-      ${afField('sku_count',    'SKU Count',   v.sku_count)}
-      ${afField('price_range',  'Price Range', v.price_range)}
-    </div>
-    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">Vendor ID: <code style="font-family:monospace;color:var(--accent)">${v.id}</code> | Status: <strong>${v.status}</strong></p>
-  `;
-}
-
-async function saveAccountProfile() {
-  if (!_acctVendor) return;
-  const inputs  = document.querySelectorAll('#account-form-root input[data-key]');
-  const updates = {};
-  inputs.forEach(inp => { updates[inp.dataset.key] = inp.value; });
-  const statusEl = document.getElementById('acct-save-status');
-  statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--muted)';
-  try {
-    const res = await fetch(`${API}/api/vendors/${encodeURIComponent(_acctVendor.id)}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-      body: JSON.stringify(updates),
-    });
-    if (res.ok) {
-      _acctVendor = await res.json();
-      statusEl.textContent = '✓ Saved'; statusEl.style.color = 'var(--accent)';
-    } else { statusEl.textContent = '✗ Save failed'; statusEl.style.color = 'var(--danger)'; }
-  } catch { statusEl.textContent = '✗ Network error'; statusEl.style.color = 'var(--danger)'; }
-  setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
-}
-
 // ── Init ────────────────────────────────────────────────────────────────────
+async function initAuth() {
+  const token = getToken();
+  if (!token) { showGate(); return; }
+  try {
+    const res = await fetch(`${API}/api/auth/me`, { headers:{ Authorization:`Bearer ${token}` } });
+    if (res.ok) {
+      const user = await res.json();
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+      await onLoginSuccess(user);
+    } else {
+      clearAuth(); showGate();
+    }
+  } catch {
+    // Network error — if we have cached user, restore their view
+    const user = getUser();
+    if (user) await onLoginSuccess(user); else showGate();
+  }
+}
+
 initAuth();
 </script>
 </body>
