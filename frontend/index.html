@@ -920,6 +920,78 @@
     }
     .pages-preview-btn:hover { color: var(--text); background: #eee; }
 
+    /* ── Login Modal ── */
+    #login-modal-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,.5);
+      align-items: center; justify-content: center;
+    }
+    #login-modal-overlay.open { display: flex; }
+    .login-modal-box {
+      background: var(--surface); border-radius: 14px;
+      padding: 32px; max-width: 400px; width: 92%;
+      border: 1px solid var(--border); position: relative;
+    }
+    .login-modal-box h2 { font-size: 1.1rem; font-weight: 800; color: var(--text); margin-bottom: 18px; }
+    .login-tab-bar { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 2px solid var(--border); }
+    .login-tab-bar button {
+      padding: 8px 16px; background: none; border: none; border-bottom: 3px solid transparent;
+      margin-bottom: -2px; font-size: .88rem; font-weight: 600; color: var(--muted); cursor: pointer;
+    }
+    .login-tab-bar button.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .login-field { margin-bottom: 12px; }
+    .login-field label { display: block; font-size: .78rem; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+    .login-field input {
+      width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 7px;
+      font-size: .9rem; outline: none; background: var(--bg); color: var(--text);
+    }
+    .login-field input:focus { border-color: var(--accent); }
+    .login-error { font-size: .82rem; color: var(--danger); margin-top: 6px; min-height: 18px; }
+    .login-submit-btn {
+      width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none;
+      border-radius: 8px; font-size: .9rem; font-weight: 700; cursor: pointer; margin-top: 6px;
+    }
+    .login-submit-btn:hover { background: var(--accent-hover); }
+    .login-modal-close {
+      position: absolute; top: 14px; right: 16px; background: none; border: none;
+      font-size: 1.4rem; cursor: pointer; color: var(--muted); line-height: 1;
+    }
+    /* ── Admin sub-tabs ── */
+    .admin-stab-bar {
+      display: flex; gap: 0; background: var(--surface);
+      border-bottom: 2px solid var(--border); padding: 0 32px;
+    }
+    .admin-stab {
+      padding: 10px 20px; background: none; border: none;
+      border-bottom: 3px solid transparent; margin-bottom: -2px;
+      font-size: .86rem; font-weight: 600; color: var(--muted); cursor: pointer;
+    }
+    .admin-stab:hover { color: var(--text); }
+    .admin-stab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    /* ── My Account tab ── */
+    .account-section {
+      max-width: 700px; margin: 0 auto; padding: 32px;
+    }
+    .account-section h2 { font-size: 1.1rem; font-weight: 800; color: var(--text); margin-bottom: 20px; }
+    .account-field-group { margin-bottom: 24px; }
+    .account-field-group h3 { font-size: .82rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+    .account-field { display: grid; grid-template-columns: 160px 1fr; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .account-field label { font-size: .82rem; color: var(--muted); font-weight: 600; }
+    .account-field input, .account-field select, .account-field textarea {
+      padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+      font-size: .88rem; outline: none; background: var(--bg); color: var(--text); width: 100%;
+    }
+    .account-field input:focus, .account-field select:focus { border-color: var(--accent); }
+    /* ── Pages upload UI ── */
+    .pages-upload-zone {
+      border: 2px dashed var(--border); border-radius: 10px;
+      padding: 28px; text-align: center; cursor: pointer;
+      transition: border-color .15s;
+    }
+    .pages-upload-zone:hover { border-color: var(--accent); }
+    .pages-upload-zone.dragging { border-color: var(--accent); background: #f0f7f4; }
+
     /* ── Responsive ── */
     @media (max-width: 900px) {
       .card-body { grid-template-columns: 1fr; }
@@ -942,11 +1014,17 @@
 <div id="stickyTop">
   <header>
     <h1>TGC Upload</h1>
+    <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
+      <span id="header-user-label" style="font-size:.82rem;color:var(--muted)"></span>
+      <button id="header-login-btn" onclick="openLoginModal()" style="font-size:.82rem;padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:600">Login</button>
+      <button id="header-logout-btn" onclick="doLogout()" style="display:none;font-size:.82rem;padding:6px 14px;background:var(--bg);border:1px solid var(--border);border-radius:7px;cursor:pointer;color:var(--text)">Logout</button>
+    </div>
   </header>
 
   <!-- ── Tab bar ── -->
   <div id="tabBar">
     <button class="tab-btn active" data-tab="vendor-reg" onclick="switchTab('vendor-reg')">Vendor Registration</button>
+    <button class="tab-btn" id="tab-btn-account" data-tab="account" onclick="switchTab('account')" style="display:none">My Account</button>
     <button class="tab-btn"        data-tab="admin"      onclick="switchTab('admin')">Admin<span id="admin-pending-badge"></span></button>
   </div>
 </div>
@@ -956,52 +1034,95 @@
   <div id="vendor-reg-root"></div>
 </div>
 
+<!-- ══════════ TAB: My Account ══════════ -->
+<div class="tab-panel" id="tab-account">
+  <div class="account-section">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h2 style="margin:0">My Account</h2>
+      <button onclick="saveAccountProfile()" class="btn-primary" id="acct-save-btn">Save Changes</button>
+    </div>
+    <p id="acct-save-status" style="font-size:.82rem;min-height:18px;color:var(--accent);margin-bottom:10px"></p>
+    <div id="account-form-root">
+      <p style="color:var(--muted)">Loading your profile…</p>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════ TAB: Admin Panel ══════════ -->
 <div class="tab-panel" id="tab-admin">
 
-  <!-- Controls bar -->
-  <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:14px 32px;display:flex;align-items:center;justify-content:space-between;gap:12px">
-    <div style="display:flex;align-items:center;gap:12px">
-      <h2 style="font-size:1rem;font-weight:700;color:var(--text);margin:0">Vendor Admin</h2>
+  <!-- Admin login gate (shown when not logged in as admin) -->
+  <div id="admin-gate" style="display:flex;align-items:center;justify-content:center;min-height:420px;padding:40px">
+    <div style="max-width:380px;width:100%;background:var(--surface);border-radius:14px;padding:32px;border:1px solid var(--border)">
+      <h2 style="font-size:1.1rem;font-weight:800;color:var(--text);margin-bottom:6px">Admin Login</h2>
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:20px">Enter your admin credentials to continue.</p>
+      <div class="login-field"><label>Email</label><input id="admin-gate-email" type="email" placeholder="admin@thegiftcollective.in"></div>
+      <div class="login-field"><label>Password</label><input id="admin-gate-password" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')adminGateLogin()"></div>
+      <p id="admin-gate-error" class="login-error"></p>
+      <button class="login-submit-btn" onclick="adminGateLogin()">Login</button>
+    </div>
+  </div>
+
+  <!-- Admin content (shown when logged in as admin) -->
+  <div id="admin-content" style="display:none">
+
+    <!-- Controls bar -->
+    <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:12px 32px;display:flex;align-items:center;gap:12px">
+      <h2 style="font-size:1rem;font-weight:700;color:var(--text);margin:0">Admin Panel</h2>
       <span id="admin-vendor-count" style="font-size:.82rem;color:var(--muted)"></span>
-    </div>
-    <button class="btn-primary" id="adminRefreshBtn" onclick="loadVendors()">Refresh</button>
-  </div>
-
-  <!-- Status bar -->
-  <div id="admin-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
-    <div class="spinner" id="admin-statusSpinner" style="display:none"></div>
-    <span id="admin-statusText"></span>
-  </div>
-
-  <!-- Pending products section (new products from Shopify webhooks) -->
-  <div id="admin-pending-section" style="display:none">
-    <div style="padding:18px 32px 6px;display:flex;align-items:center;gap:10px">
-      <h3 style="font-size:.9rem;font-weight:700;color:var(--text);margin:0">Awaiting Approval</h3>
-      <span id="admin-pending-count" style="font-size:.8rem;color:var(--muted)"></span>
-      <span style="font-size:.78rem;color:var(--muted);margin-left:4px">— New products added at the Shopify store. Select images, fill taxonomy, then approve.</span>
-    </div>
-    <div id="admin-pending-container"
-      style="padding:12px 32px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px">
-    </div>
-    <div style="height:1px;background:var(--border);margin:0 32px 4px"></div>
-  </div>
-
-  <!-- Vendor table section -->
-  <div id="admin-vendor-section">
-    <div style="padding:20px 32px 0;overflow-x:auto">
-      <div id="admin-vendor-table-wrap">
-        <div id="admin-empty" style="text-align:center;padding:60px 20px;color:var(--muted)">
-          <div style="font-size:2.5rem;margin-bottom:12px">🏪</div>
-          <p>No vendor registrations yet.</p>
-          <p style="font-size:.82rem;margin-top:8px">Click <strong>Refresh</strong> to load, or wait for vendors to submit their registration.</p>
-        </div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <span id="admin-logged-user" style="font-size:.8rem;color:var(--muted)"></span>
+        <button onclick="adminGateLogout()" style="font-size:.8rem;padding:5px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text)">Logout</button>
       </div>
     </div>
-  </div>
 
-  <!-- Product results section (shown after a pull completes) -->
-  <div id="admin-results-section" style="display:none">
+    <!-- Sub-tab bar -->
+    <div class="admin-stab-bar">
+      <button class="admin-stab active" data-stab="vendors" onclick="switchAdminSubTab('vendors')">Vendors</button>
+      <button class="admin-stab" data-stab="catalogue" onclick="switchAdminSubTab('catalogue')">Catalogue</button>
+      <button class="admin-stab" data-stab="pages" onclick="switchAdminSubTab('pages')">Website Pages</button>
+    </div>
+
+    <!-- Sub-tab: Vendors -->
+    <div id="admin-stab-vendors">
+      <div style="padding:10px 32px 6px;display:flex;justify-content:flex-end">
+        <button class="btn-primary" id="adminRefreshBtn" onclick="loadVendors()" style="padding:6px 14px;font-size:.82rem">Refresh</button>
+      </div>
+
+      <!-- Status bar -->
+      <div id="admin-statusBar" style="display:none;padding:11px 32px;font-size:.88rem;font-weight:500;gap:10px;align-items:center">
+        <div class="spinner" id="admin-statusSpinner" style="display:none"></div>
+        <span id="admin-statusText"></span>
+      </div>
+
+      <!-- Pending products section (new products from Shopify webhooks) -->
+      <div id="admin-pending-section" style="display:none">
+        <div style="padding:18px 32px 6px;display:flex;align-items:center;gap:10px">
+          <h3 style="font-size:.9rem;font-weight:700;color:var(--text);margin:0">Awaiting Approval</h3>
+          <span id="admin-pending-count" style="font-size:.8rem;color:var(--muted)"></span>
+          <span style="font-size:.78rem;color:var(--muted);margin-left:4px">— New products from Shopify. Select images, fill taxonomy, then approve.</span>
+        </div>
+        <div id="admin-pending-container"
+          style="padding:12px 32px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px">
+        </div>
+        <div style="height:1px;background:var(--border);margin:0 32px 4px"></div>
+      </div>
+
+      <!-- Vendor table section -->
+      <div id="admin-vendor-section">
+        <div style="padding:20px 32px 0;overflow-x:auto">
+          <div id="admin-vendor-table-wrap">
+            <div id="admin-empty" style="text-align:center;padding:60px 20px;color:var(--muted)">
+              <div style="font-size:2.5rem;margin-bottom:12px">🏪</div>
+              <p>No vendor registrations yet.</p>
+              <p style="font-size:.82rem;margin-top:8px">Click <strong>Refresh</strong> to load.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Product results section (shown after a pull completes) -->
+      <div id="admin-results-section" style="display:none">
     <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:11px 32px;display:flex;align-items:center;gap:12px">
       <button class="admin-back-btn" onclick="backToVendorTable()">← Back to Vendors</button>
       <span id="admin-results-label" style="font-size:.9rem;font-weight:600;color:var(--text)"></span>
@@ -1030,79 +1151,108 @@
       <button id="selectAllBtn" onclick="selectAllAssets()">Select All</button>
       <button id="pushBtn" disabled onclick="pushToStorage()">Approve &amp; Push to ImageKit</button>
     </div>
-  </div>
+      </div><!-- /admin-results-section -->
+    </div><!-- /admin-stab-vendors -->
 
-<!-- ── Pages Editor section (inside Admin tab) ── -->
-<div style="max-width:900px;margin:0 auto;padding:28px 32px 40px">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-    <div>
-      <h3 style="font-size:.95rem;font-weight:700;color:var(--text);margin:0">Website Pages</h3>
-      <p style="font-size:.8rem;color:var(--muted);margin-top:3px">Edit the content shown to visitors in the footer pages.</p>
-    </div>
-  </div>
-  <div id="admin-pages-editor">
-    <p style="color:var(--muted);font-size:.86rem">Loading pages editor…</p>
-  </div>
-</div>
+    <!-- Sub-tab: Catalogue -->
+    <div id="admin-stab-catalogue" style="display:none;padding:0 0 60px">
+      <div style="max-width:1200px;margin:0 auto;padding:20px 32px 0">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <div>
+            <h3 style="font-size:.95rem;font-weight:700;color:var(--text);margin:0">Catalogue Editor</h3>
+            <p style="font-size:.8rem;color:var(--muted);margin-top:3px">Edit approved products. Select rows for bulk edit, or use Apply to All.</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button id="catRefreshBtn" onclick="loadCatalogueEditor(true)" style="font-size:.8rem;padding:6px 14px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text)">Refresh</button>
+            <button id="catSaveBtn" onclick="saveCatalogueChanges()" style="font-size:.8rem;padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">Save Changes (<span id="catChangesCount">0</span>)</button>
+          </div>
+        </div>
+        <!-- Bulk edit toolbar -->
+        <div id="cat-bulk-bar" style="display:none;background:#f0f7f4;border:1px solid var(--accent);border-radius:8px;padding:12px 16px;margin-bottom:12px;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <span style="font-size:.82rem;font-weight:600;color:var(--accent);white-space:nowrap" id="cat-sel-label">0 selected</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;flex:1">
+            <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Level 1</label><input id="cb-level_1" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;width:110px;background:var(--bg);color:var(--text)" placeholder="Category"></div>
+            <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Level 2</label><input id="cb-level_2" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;width:110px;background:var(--bg);color:var(--text)" placeholder="Subcategory"></div>
+            <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Level 3</label><input id="cb-level_3" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;width:110px;background:var(--bg);color:var(--text)" placeholder="Level 3"></div>
+            <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Collection</label><input id="cb-collection_description" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;width:120px;background:var(--bg);color:var(--text)" placeholder="e.g. Diwali"></div>
+            <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Show Product</label><select id="cb-show_product" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"><option value="">—</option><option value="true">Yes</option><option value="false">No</option></select></div>
+            <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Sold Out</label><select id="cb-sold_out" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"><option value="">—</option><option value="true">Yes</option><option value="false">No</option></select></div>
+            <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Homepage</label><select id="cb-is_homepage" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"><option value="">—</option><option value="true">Yes</option><option value="false">No</option></select></div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button onclick="applyBulkCatalogueEdit(false)" style="font-size:.8rem;padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">Apply to Selected</button>
+            <button onclick="applyBulkCatalogueEdit(true)" style="font-size:.8rem;padding:6px 14px;background:#888;color:#fff;border:none;border-radius:6px;cursor:pointer">Apply to All</button>
+          </div>
+        </div>
+        <!-- Table -->
+        <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px">
+          <table id="cat-table" style="width:100%;border-collapse:collapse;font-size:.8rem">
+            <thead>
+              <tr style="background:var(--surface);border-bottom:2px solid var(--border)">
+                <th style="padding:8px 10px;text-align:center;width:32px"><input type="checkbox" id="cat-select-all" onchange="toggleAllCatRows(this.checked)" title="Select all"></th>
+                <th style="padding:8px 10px;text-align:left;min-width:160px">Product</th>
+                <th style="padding:8px 10px;text-align:left;min-width:100px">Brand</th>
+                <th style="padding:8px 10px;text-align:left;min-width:70px">Price</th>
+                <th style="padding:8px 10px;text-align:left;min-width:100px">Level 1</th>
+                <th style="padding:8px 10px;text-align:left;min-width:100px">Level 2</th>
+                <th style="padding:8px 10px;text-align:left;min-width:100px">Level 3</th>
+                <th style="padding:8px 10px;text-align:left;min-width:110px">Collection</th>
+                <th style="padding:8px 10px;text-align:center;min-width:70px">Show</th>
+                <th style="padding:8px 10px;text-align:center;min-width:70px">Sold Out</th>
+                <th style="padding:8px 10px;text-align:center;min-width:70px">Homepage</th>
+              </tr>
+            </thead>
+            <tbody id="cat-tbody">
+              <tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted)">Loading catalogue…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p id="cat-status" style="font-size:.8rem;color:var(--muted);margin-top:8px"></p>
+      </div>
+    </div><!-- /admin-stab-catalogue -->
 
-<!-- ── Catalogue Editor section (inside Admin tab) ── -->
-<div style="max-width:1200px;margin:0 auto;padding:0 32px 60px">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-    <div>
-      <h3 style="font-size:.95rem;font-weight:700;color:var(--text);margin:0">Catalogue Editor</h3>
-      <p style="font-size:.8rem;color:var(--muted);margin-top:3px">Edit approved products. Select rows for bulk edit, or use Apply to All.</p>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button id="catRefreshBtn" onclick="loadCatalogueEditor(true)" style="font-size:.8rem;padding:6px 14px;background:var(--card);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text)">Refresh</button>
-      <button id="catSaveBtn" onclick="saveCatalogueChanges()" style="font-size:.8rem;padding:6px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">Save Changes (<span id="catChangesCount">0</span>)</button>
-    </div>
-  </div>
+    <!-- Sub-tab: Website Pages -->
+    <div id="admin-stab-pages" style="display:none">
+      <div style="max-width:900px;margin:0 auto;padding:28px 32px 60px">
+        <div style="margin-bottom:18px">
+          <h3 style="font-size:.95rem;font-weight:700;color:var(--text);margin:0">Website Pages</h3>
+          <p style="font-size:.8rem;color:var(--muted);margin-top:3px">Download the current page, edit it in Word or any editor, then upload to update.</p>
+        </div>
+        <div id="admin-pages-editor">
+          <p style="color:var(--muted);font-size:.86rem">Loading pages…</p>
+        </div>
+      </div>
+    </div><!-- /admin-stab-pages -->
 
-  <!-- Bulk edit toolbar (shown when rows selected) -->
-  <div id="cat-bulk-bar" style="display:none;background:var(--card);border:1px solid var(--primary);border-radius:8px;padding:12px 16px;margin-bottom:12px;gap:10px;flex-wrap:wrap;align-items:flex-end">
-    <span style="font-size:.82rem;font-weight:600;color:var(--primary);white-space:nowrap" id="cat-sel-label">0 selected</span>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;flex:1">
-      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Level 1</label><input id="cb-level_1" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;width:110px;background:var(--bg);color:var(--text)" placeholder="Category"></div>
-      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Level 2</label><input id="cb-level_2" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;width:110px;background:var(--bg);color:var(--text)" placeholder="Subcategory"></div>
-      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Level 3</label><input id="cb-level_3" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;width:110px;background:var(--bg);color:var(--text)" placeholder="Level 3"></div>
-      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Collection</label><input id="cb-collection_description" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;width:120px;background:var(--bg);color:var(--text)" placeholder="e.g. Diwali"></div>
-      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Show Product</label><select id="cb-show_product" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"><option value="">—</option><option value="true">Yes</option><option value="false">No</option></select></div>
-      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Sold Out</label><select id="cb-sold_out" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"><option value="">—</option><option value="true">Yes</option><option value="false">No</option></select></div>
-      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:.72rem;color:var(--muted)">Homepage</label><select id="cb-is_homepage" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"><option value="">—</option><option value="true">Yes</option><option value="false">No</option></select></div>
-    </div>
-    <div style="display:flex;gap:6px">
-      <button onclick="applyBulkCatalogueEdit(false)" style="font-size:.8rem;padding:6px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;cursor:pointer">Apply to Selected</button>
-      <button onclick="applyBulkCatalogueEdit(true)" style="font-size:.8rem;padding:6px 14px;background:#888;color:#fff;border:none;border-radius:6px;cursor:pointer">Apply to All</button>
-    </div>
-  </div>
-
-  <!-- Table -->
-  <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px">
-    <table id="cat-table" style="width:100%;border-collapse:collapse;font-size:.8rem">
-      <thead>
-        <tr style="background:var(--card);border-bottom:2px solid var(--border)">
-          <th style="padding:8px 10px;text-align:center;width:32px"><input type="checkbox" id="cat-select-all" onchange="toggleAllCatRows(this.checked)" title="Select all"></th>
-          <th style="padding:8px 10px;text-align:left;min-width:160px">Product</th>
-          <th style="padding:8px 10px;text-align:left;min-width:100px">Brand</th>
-          <th style="padding:8px 10px;text-align:left;min-width:70px">Price</th>
-          <th style="padding:8px 10px;text-align:left;min-width:100px">Level 1</th>
-          <th style="padding:8px 10px;text-align:left;min-width:100px">Level 2</th>
-          <th style="padding:8px 10px;text-align:left;min-width:100px">Level 3</th>
-          <th style="padding:8px 10px;text-align:left;min-width:110px">Collection</th>
-          <th style="padding:8px 10px;text-align:center;min-width:70px">Show</th>
-          <th style="padding:8px 10px;text-align:center;min-width:70px">Sold Out</th>
-          <th style="padding:8px 10px;text-align:center;min-width:70px">Homepage</th>
-        </tr>
-      </thead>
-      <tbody id="cat-tbody">
-        <tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted)">Loading catalogue…</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <p id="cat-status" style="font-size:.8rem;color:var(--muted);margin-top:8px"></p>
-</div>
-
+  </div><!-- /admin-content -->
 </div><!-- /tab-admin -->
+
+<!-- ── Login / Register Modal ── -->
+<div id="login-modal-overlay">
+  <div class="login-modal-box">
+    <button class="login-modal-close" onclick="closeLoginModal()">×</button>
+    <h2 id="login-modal-title">Welcome back</h2>
+    <div class="login-tab-bar">
+      <button id="ltab-login" class="active" onclick="showLoginTab('login')">Login</button>
+      <button id="ltab-register" onclick="showLoginTab('register')">Create Account</button>
+    </div>
+    <!-- Login form -->
+    <div id="lform-login">
+      <div class="login-field"><label>Email</label><input id="lf-email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+      <div class="login-field"><label>Password</label><input id="lf-password" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <p id="lf-error" class="login-error"></p>
+      <button class="login-submit-btn" onclick="doLogin()">Login</button>
+    </div>
+    <!-- Register form -->
+    <div id="lform-register" style="display:none">
+      <div class="login-field"><label>Email</label><input id="rf-email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+      <div class="login-field"><label>Password <span style="font-weight:400;color:var(--muted)">(min 8 chars)</span></label><input id="rf-password" type="password" placeholder="Choose a password"></div>
+      <div class="login-field"><label>Vendor ID <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input id="rf-vendor-id" type="text" placeholder="e.g. TGC-ABCDE"></div>
+      <p id="rf-error" class="login-error"></p>
+      <button class="login-submit-btn" onclick="doRegister()">Create Account</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── Result modal ── -->
 <div id="resultModal">
@@ -3035,17 +3185,65 @@ function VendorRegistration() {
     6: <ReviewStage data={data} onSubmit={submit} />,
   };
 
+  const [acctEmail, setAcctEmail] = React.useState('');
+  const [acctPw,    setAcctPw]    = React.useState('');
+  const [acctMsg,   setAcctMsg]   = React.useState('');
+  const [acctDone,  setAcctDone]  = React.useState(false);
+
+  const createAccount = async () => {
+    if (!acctEmail || !acctPw) { setAcctMsg('Please enter email and password.'); return; }
+    if (acctPw.length < 8) { setAcctMsg('Password must be at least 8 characters.'); return; }
+    setAcctMsg('Creating account…');
+    try {
+      const res  = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: acctEmail, password: acctPw, vendor_id: data.vendorId }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setAcctMsg(json.detail || 'Registration failed.'); return; }
+      localStorage.setItem('tgc_token', json.token);
+      localStorage.setItem('tgc_user', JSON.stringify(json.user));
+      setAcctDone(true);
+      setAcctMsg('✓ Account created! You can now manage your registration under My Account.');
+      if (window.onAuthChange) window.onAuthChange(json.user);
+    } catch (e) { setAcctMsg('Network error. Please try again.'); }
+  };
+
   if (submitted) {
     return (
       <div style={{ minHeight:400, display:"flex", alignItems:"center", justifyContent:"center", padding:32, fontFamily:sans, background:VT.bg }}>
-        <div style={{ textAlign:"center", maxWidth:420 }}>
+        <div style={{ textAlign:"center", maxWidth:460 }}>
           <div style={{ fontSize:52, marginBottom:14 }}>🎉</div>
           <h2 style={{ fontSize:21, fontWeight:900, color:VT.ink, marginBottom:8 }}>Registration Submitted!</h2>
           <p style={{ fontSize:13, color:VT.inkMid, lineHeight:1.7, marginBottom:10 }}>
-            The Gift Collective team will review your registration and activate your store within 2 business days. You'll receive a confirmation email.
+            The Gift Collective team will review your registration and activate your store within 2 business days.
           </p>
           <code style={{ display:"inline-block", fontSize:13, color:VT.accent, background:VT.accentBg,
-            padding:"5px 13px", borderRadius:5, fontFamily:mono, marginBottom:22 }}>{data.vendorId}</code><br/>
+            padding:"5px 13px", borderRadius:5, fontFamily:mono, marginBottom:22 }}>{data.vendorId}</code>
+          {!acctDone && (
+            <div style={{ background:VT.surface, border:`1px solid ${VT.border}`, borderRadius:10, padding:"20px 24px", marginBottom:16, textAlign:"left" }}>
+              <p style={{ fontSize:13, fontWeight:700, color:VT.ink, marginBottom:12 }}>Create your login to manage this registration</p>
+              <div style={{ marginBottom:10 }}>
+                <label style={{ fontSize:11, color:VT.inkMid, display:"block", marginBottom:4 }}>Email</label>
+                <input type="email" value={acctEmail} onChange={e=>setAcctEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  style={{ width:"100%", padding:"7px 10px", border:`1px solid ${VT.border}`, borderRadius:6, fontSize:13 }} />
+              </div>
+              <div style={{ marginBottom:12 }}>
+                <label style={{ fontSize:11, color:VT.inkMid, display:"block", marginBottom:4 }}>Password (min 8 chars)</label>
+                <input type="password" value={acctPw} onChange={e=>setAcctPw(e.target.value)}
+                  placeholder="Choose a password"
+                  style={{ width:"100%", padding:"7px 10px", border:`1px solid ${VT.border}`, borderRadius:6, fontSize:13 }} />
+              </div>
+              {acctMsg && <p style={{ fontSize:12, color: acctMsg.startsWith('✓') ? VT.green : VT.danger, marginBottom:8 }}>{acctMsg}</p>}
+              <button onClick={createAccount}
+                style={{ width:"100%", padding:"9px", background:VT.accent, color:"#fff", border:"none", borderRadius:7, fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                Create Account
+              </button>
+            </div>
+          )}
+          {acctDone && <p style={{ fontSize:13, color:VT.green, marginBottom:16 }}>{acctMsg}</p>}
           <Btn onClick={reset} variant="ghost">Start New Registration</Btn>
         </div>
       </div>
@@ -3245,16 +3443,22 @@ function renderEditorRight() {
   const page = _pagesData[_activePage];
   if (!page) return '';
   return `
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px">
       <h4 style="font-size:.95rem;font-weight:700;color:var(--text);margin:0">${PAGE_LABELS[_activePage]}</h4>
-      <div style="display:flex;gap:8px">
-        <button class="pages-preview-btn" onclick="previewCurrentPage()">👁 Preview</button>
-        <button class="btn-primary" style="font-size:.82rem;padding:7px 16px" onclick="saveCurrentPage()">Save</button>
-      </div>
+      <button class="pages-preview-btn" onclick="previewCurrentPage()">👁 Preview</button>
     </div>
-    <p style="font-size:.78rem;color:var(--muted);margin-top:-4px">Edit HTML content below. Standard tags (h2–h4, p, ul, ol, li, strong, em, a) are supported.</p>
-    <textarea id="page-editor-ta" oninput="_pagesData['${_activePage}'].content=this.value">${escHtml(page.content)}</textarea>
-    <div id="page-save-status" style="font-size:.82rem;height:18px"></div>`;
+    <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap">
+      <a id="page-download-link" href="#" onclick="downloadCurrentPage(event)"
+        style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:var(--surface);border:1px solid var(--border);border-radius:7px;font-size:.84rem;color:var(--text);text-decoration:none;cursor:pointer">
+        ⬇ Download (.html)
+      </a>
+    </div>
+    <div class="pages-upload-zone" id="page-upload-zone" onclick="document.getElementById('page-file-input').click()" ondragover="event.preventDefault();this.classList.add('dragging')" ondragleave="this.classList.remove('dragging')" ondrop="handlePageDrop(event)">
+      <input type="file" id="page-file-input" accept=".docx,.pdf,.html,.htm" style="display:none" onchange="uploadPageFile(this.files[0])">
+      <p style="font-size:.9rem;color:var(--text);margin-bottom:4px;font-weight:600">Upload new content</p>
+      <p style="font-size:.8rem;color:var(--muted)">Accepts <strong>.docx</strong>, <strong>.pdf</strong>, or <strong>.html</strong> — drag & drop or click to browse</p>
+    </div>
+    <p id="page-upload-status" style="font-size:.82rem;min-height:18px;margin-top:8px"></p>`;
 }
 
 function escHtml(s) {
@@ -3270,43 +3474,81 @@ function selectEditorPage(slug) {
   document.getElementById('pages-editor-right').innerHTML = renderEditorRight();
 }
 
-async function saveCurrentPage() {
-  const statusEl = document.getElementById('page-save-status');
-  const ta = document.getElementById('page-editor-ta');
-  const content = ta ? ta.value : (_pagesData[_activePage]||{}).content || '';
-  // Bust cache so modal re-fetches
+function downloadCurrentPage(e) {
+  e.preventDefault();
+  const slug = _activePage;
+  const url  = `${window.API_BASE_URL || ''}/api/pages/${slug}/download`;
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `${slug}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function handlePageDrop(e) {
+  e.preventDefault();
+  document.getElementById('page-upload-zone').classList.remove('dragging');
+  const file = e.dataTransfer.files[0];
+  if (file) uploadPageFile(file);
+}
+
+async function uploadPageFile(file) {
+  if (!file) return;
+  const statusEl = document.getElementById('page-upload-status');
+  statusEl.textContent = 'Uploading…'; statusEl.style.color = 'var(--muted)';
   delete _pageCache[_activePage];
   try {
-    statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--muted)';
-    await fetch(`${window.API_BASE_URL || ''}/api/pages/${_activePage}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+    const form = new FormData();
+    form.append('file', file);
+    const res  = await fetch(`${window.API_BASE_URL || ''}/api/pages/${_activePage}/upload`, {
+      method: 'POST', body: form,
     });
-    _pagesData[_activePage].content = content;
-    statusEl.textContent = '✓ Saved'; statusEl.style.color = 'var(--accent)';
-    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2500);
+    const json = await res.json();
+    if (!res.ok) { statusEl.textContent = `✗ ${json.detail || 'Upload failed'}`; statusEl.style.color = 'var(--danger)'; return; }
+    _pagesData[_activePage].content = json.content;
+    statusEl.textContent = '✓ Content updated successfully';
+    statusEl.style.color = 'var(--accent)';
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
   } catch {
-    statusEl.textContent = '✗ Save failed'; statusEl.style.color = 'var(--danger)';
+    statusEl.textContent = '✗ Upload failed'; statusEl.style.color = 'var(--danger)';
   }
 }
 
 function previewCurrentPage() {
-  const ta = document.getElementById('page-editor-ta');
-  const content = ta ? ta.value : '';
   const page = _pagesData[_activePage];
-  // Inject current (unsaved) content into modal for preview
-  _pageCache[_activePage] = { title: PAGE_LABELS[_activePage], content };
+  _pageCache[_activePage] = { title: PAGE_LABELS[_activePage], content: page ? page.content : '' };
   openPage(_activePage);
 }
 
-// Load pages editor when Admin tab is activated
+// Triggered when admin sub-tab changes to pages
+window._onAdminSubTabPages = function() {
+  if (!_pagesLoaded) loadPagesEditor();
+};
+let _pagesLoaded = false;
+
+const _origLoadPagesEditor = loadPagesEditor;
+loadPagesEditor = async function() {
+  _pagesLoaded = true;
+  await _origLoadPagesEditor();
+};
+
+// Load pages editor when Admin tab is activated (specifically the pages sub-tab)
 const _origSwitchTab = window.switchTab;
 window.switchTab = function(tab) {
   if (_origSwitchTab) _origSwitchTab(tab);
   if (tab === 'admin') {
-    setTimeout(loadPagesEditor, 100);
-    setTimeout(loadCatalogueEditor, 150);
+    setTimeout(() => {
+      // Only load pages editor if pages sub-tab is active
+      const pagesStab = document.getElementById('admin-stab-pages');
+      if (pagesStab && pagesStab.style.display !== 'none') loadPagesEditor();
+      // Load catalogue if sub-tab is active
+      const catStab = document.getElementById('admin-stab-catalogue');
+      if (catStab && catStab.style.display !== 'none') loadCatalogueEditor();
+    }, 100);
+  }
+  if (tab === 'account') {
+    setTimeout(loadAccountProfile, 100);
   }
 };
 </script>
@@ -3553,6 +3795,263 @@ async function saveCatalogueChanges() {
     setTimeout(() => { if (statusEl) statusEl.style.color = 'var(--muted)'; }, 3000);
   }
 }
+</script>
+
+<script>
+// ── Auth ────────────────────────────────────────────────────────────────────
+const AUTH_KEY   = 'tgc_token';
+const USER_KEY   = 'tgc_user';
+const API        = window.API_BASE_URL || '';
+
+function getToken()   { return localStorage.getItem(AUTH_KEY); }
+function getUser()    { try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch { return null; } }
+function clearAuth()  { localStorage.removeItem(AUTH_KEY); localStorage.removeItem(USER_KEY); }
+
+function applyAuthState(user) {
+  const loginBtn  = document.getElementById('header-login-btn');
+  const logoutBtn = document.getElementById('header-logout-btn');
+  const userLabel = document.getElementById('header-user-label');
+  const acctBtn   = document.getElementById('tab-btn-account');
+
+  if (user) {
+    if (loginBtn)  loginBtn.style.display  = 'none';
+    if (logoutBtn) logoutBtn.style.display = '';
+    if (userLabel) userLabel.textContent   = user.email;
+    if (acctBtn && user.role === 'vendor') acctBtn.style.display = '';
+    // Unlock admin tab
+    if (user.role === 'admin') {
+      document.getElementById('admin-gate').style.display    = 'none';
+      document.getElementById('admin-content').style.display = '';
+      const lbl = document.getElementById('admin-logged-user');
+      if (lbl) lbl.textContent = user.email;
+    }
+  } else {
+    if (loginBtn)  loginBtn.style.display  = '';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+    if (userLabel) userLabel.textContent   = '';
+    if (acctBtn)   acctBtn.style.display   = 'none';
+    document.getElementById('admin-gate').style.display    = '';
+    document.getElementById('admin-content').style.display = 'none';
+  }
+}
+
+window.onAuthChange = function(user) {
+  applyAuthState(user);
+};
+
+async function initAuth() {
+  const token = getToken();
+  if (!token) { applyAuthState(null); return; }
+  try {
+    const res = await fetch(`${API}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) {
+      const user = await res.json();
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+      applyAuthState(user);
+    } else {
+      clearAuth(); applyAuthState(null);
+    }
+  } catch { applyAuthState(getUser()); }
+}
+
+// Login modal
+function openLoginModal(tab) {
+  document.getElementById('login-modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  showLoginTab(tab || 'login');
+}
+function closeLoginModal() {
+  document.getElementById('login-modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function showLoginTab(tab) {
+  document.getElementById('lform-login').style.display    = tab === 'login'    ? '' : 'none';
+  document.getElementById('lform-register').style.display = tab === 'register' ? '' : 'none';
+  document.getElementById('ltab-login').className    = tab === 'login'    ? 'active' : '';
+  document.getElementById('ltab-register').className = tab === 'register' ? 'active' : '';
+  document.getElementById('login-modal-title').textContent = tab === 'login' ? 'Welcome back' : 'Create your account';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLoginModal(); });
+
+async function doLogin() {
+  const email    = document.getElementById('lf-email').value.trim();
+  const password = document.getElementById('lf-password').value;
+  const errEl    = document.getElementById('lf-error');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
+  try {
+    const res  = await fetch(`${API}/api/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const json = await res.json();
+    if (!res.ok) { errEl.textContent = json.detail || 'Login failed.'; return; }
+    localStorage.setItem(AUTH_KEY, json.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(json.user));
+    closeLoginModal();
+    applyAuthState(json.user);
+    if (json.user.role === 'admin') {
+      if (window.switchTab) window.switchTab('admin');
+    } else {
+      if (window.switchTab) window.switchTab('account');
+    }
+  } catch { errEl.textContent = 'Network error. Please try again.'; }
+}
+
+async function doRegister() {
+  const email    = document.getElementById('rf-email').value.trim();
+  const password = document.getElementById('rf-password').value;
+  const vendorId = document.getElementById('rf-vendor-id').value.trim();
+  const errEl    = document.getElementById('rf-error');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
+  try {
+    const res  = await fetch(`${API}/api/auth/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, vendor_id: vendorId || null }),
+    });
+    const json = await res.json();
+    if (!res.ok) { errEl.textContent = json.detail || 'Registration failed.'; return; }
+    localStorage.setItem(AUTH_KEY, json.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(json.user));
+    closeLoginModal();
+    applyAuthState(json.user);
+    if (window.switchTab) window.switchTab('account');
+  } catch { errEl.textContent = 'Network error. Please try again.'; }
+}
+
+async function doLogout() {
+  const token = getToken();
+  if (token) {
+    await fetch(`${API}/api/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+  }
+  clearAuth();
+  applyAuthState(null);
+  if (window.switchTab) window.switchTab('vendor-reg');
+}
+
+// Admin gate login (inline in admin tab)
+async function adminGateLogin() {
+  const email    = document.getElementById('admin-gate-email').value.trim();
+  const password = document.getElementById('admin-gate-password').value;
+  const errEl    = document.getElementById('admin-gate-error');
+  errEl.textContent = '';
+  try {
+    const res  = await fetch(`${API}/api/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const json = await res.json();
+    if (!res.ok || json.user?.role !== 'admin') {
+      errEl.textContent = json.detail || 'Invalid admin credentials.'; return;
+    }
+    localStorage.setItem(AUTH_KEY, json.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(json.user));
+    applyAuthState(json.user);
+    loadVendors();
+  } catch { errEl.textContent = 'Network error.'; }
+}
+
+function adminGateLogout() {
+  doLogout();
+}
+
+// ── Admin Sub-tabs ──────────────────────────────────────────────────────────
+function switchAdminSubTab(name) {
+  ['vendors', 'catalogue', 'pages'].forEach(t => {
+    const el  = document.getElementById(`admin-stab-${t}`);
+    const btn = document.querySelector(`.admin-stab[data-stab="${t}"]`);
+    if (el)  el.style.display  = t === name ? '' : 'none';
+    if (btn) btn.className = t === name ? 'admin-stab active' : 'admin-stab';
+  });
+  if (name === 'catalogue') loadCatalogueEditor();
+  if (name === 'pages')     { if (!_pagesLoaded) loadPagesEditor(); }
+}
+
+// ── My Account (vendor profile editor) ─────────────────────────────────────
+let _acctVendor = null;
+
+async function loadAccountProfile() {
+  const user = getUser();
+  if (!user || user.role !== 'vendor' || !user.vendor_id) {
+    document.getElementById('account-form-root').innerHTML =
+      '<p style="color:var(--muted)">No vendor registration linked to your account. Complete the registration form first.</p>';
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/api/vendors/${encodeURIComponent(user.vendor_id)}`, {
+      headers: { Authorization: `Bearer ${getToken()}` }
+    });
+    if (!res.ok) throw new Error('Not found');
+    _acctVendor = await res.json();
+    renderAccountForm();
+  } catch {
+    document.getElementById('account-form-root').innerHTML =
+      '<p style="color:var(--danger)">Failed to load your profile. Please refresh.</p>';
+  }
+}
+
+function afField(key, label, value, type) {
+  const v = (value || '').toString().replace(/"/g, '&quot;');
+  const inputType = type || 'text';
+  return `<div class="account-field"><label>${label}</label><input type="${inputType}" data-key="${key}" value="${v}"></div>`;
+}
+
+function renderAccountForm() {
+  const v = _acctVendor;
+  if (!v) return;
+  document.getElementById('account-form-root').innerHTML = `
+    <div class="account-field-group">
+      <h3>Brand</h3>
+      ${afField('brand_name',    'Brand Name',    v.brand_name)}
+      ${afField('store_url',     'Store URL',     v.store_url,   'url')}
+      ${afField('logo_url',      'Logo URL',      v.logo_url,    'url')}
+    </div>
+    <div class="account-field-group">
+      <h3>Contact</h3>
+      ${afField('contact_name',  'Contact Name',  v.contact_name)}
+      ${afField('contact_email', 'Email',         v.contact_email, 'email')}
+      ${afField('contact_phone', 'Phone',         v.contact_phone, 'tel')}
+      ${afField('notify_email',  'Notify Email',  v.notify_email,  'email')}
+    </div>
+    <div class="account-field-group">
+      <h3>Business</h3>
+      ${afField('full_legal_name', 'Legal Name',  v.full_legal_name)}
+      ${afField('billing_city',    'City',        v.billing_city)}
+      ${afField('billing_state',   'State',       v.billing_state)}
+      ${afField('billing_country', 'Country',     v.billing_country)}
+    </div>
+    <div class="account-field-group">
+      <h3>Catalogue</h3>
+      ${afField('sku_count',    'SKU Count',   v.sku_count)}
+      ${afField('price_range',  'Price Range', v.price_range)}
+    </div>
+    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">Vendor ID: <code style="font-family:monospace;color:var(--accent)">${v.id}</code> | Status: <strong>${v.status}</strong></p>
+  `;
+}
+
+async function saveAccountProfile() {
+  if (!_acctVendor) return;
+  const inputs  = document.querySelectorAll('#account-form-root input[data-key]');
+  const updates = {};
+  inputs.forEach(inp => { updates[inp.dataset.key] = inp.value; });
+  const statusEl = document.getElementById('acct-save-status');
+  statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--muted)';
+  try {
+    const res = await fetch(`${API}/api/vendors/${encodeURIComponent(_acctVendor.id)}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      body: JSON.stringify(updates),
+    });
+    if (res.ok) {
+      _acctVendor = await res.json();
+      statusEl.textContent = '✓ Saved'; statusEl.style.color = 'var(--accent)';
+    } else { statusEl.textContent = '✗ Save failed'; statusEl.style.color = 'var(--danger)'; }
+  } catch { statusEl.textContent = '✗ Network error'; statusEl.style.color = 'var(--danger)'; }
+  setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+initAuth();
 </script>
 </body>
 </html>

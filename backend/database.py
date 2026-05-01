@@ -1,8 +1,10 @@
+import hashlib
 import json
 import os
+import secrets
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "vendors.db")
@@ -32,6 +34,25 @@ def get_db():
         raise
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Password helpers (PBKDF2-HMAC-SHA256, no extra deps)
+# ---------------------------------------------------------------------------
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    h = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 260000)
+    return f"{salt}${h.hex()}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        salt, h_hex = stored.split("$", 1)
+        h = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 260000)
+        return secrets.compare_digest(h.hex(), h_hex)
+    except Exception:
+        return False
 
 
 def init_db():
@@ -96,6 +117,20 @@ def init_db():
                 last_pulled_at        TEXT,
                 notes                 TEXT,
                 webhook_ids           TEXT DEFAULT '{}'
+            );
+        """)
+            CREATE TABLE IF NOT EXISTS users (
+                id            TEXT PRIMARY KEY,
+                email         TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role          TEXT DEFAULT 'vendor',
+                vendor_id     TEXT,
+                created_at    TEXT
+            );
+            CREATE TABLE IF NOT EXISTS sessions (
+                token      TEXT PRIMARY KEY,
+                user_id    TEXT NOT NULL,
+                expires_at TEXT NOT NULL
             );
         """)
         # Add columns to existing databases that pre-date them
@@ -255,3 +290,63 @@ def get_webhook_ids(vendor_id: str) -> dict:
         return json.loads(row["webhook_ids"] or "{}")
     except Exception:
         return {}
+
+
+# ---------------------------------------------------------------------------
+# Auth helpers
+# ---------------------------------------------------------------------------
+
+SESSION_TTL_DAYS = 30
+
+
+def create_user(email: str, password: str, role: str = "vendor", vendor_id: Optional[str] = None) -> dict:
+    user_id = str(__import__("uuid").uuid4())
+    pw_hash = hash_password(password)
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, password_hash, role, vendor_id, created_at) VALUES (?,?,?,?,?,?)",
+            (user_id, email.lower().strip(), pw_hash, role, vendor_id, datetime.now().isoformat()),
+        )
+        row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    return dict(row)
+
+
+def get_user_by_email(email: str) -> Optional[dict]:
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM users WHERE email=?", (email.lower().strip(),)).fetchone()
+    return dict(row) if row else None
+
+
+def get_user_by_id(user_id: str) -> Optional[dict]:
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def create_session(user_id: str) -> str:
+    token = secrets.token_hex(32)
+    expires = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?,?,?)",
+            (token, user_id, expires),
+        )
+    return token
+
+
+def get_session_user(token: str) -> Optional[dict]:
+    """Return user dict if session token is valid and not expired."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM sessions WHERE token=?", (token,)
+        ).fetchone()
+    if not row:
+        return None
+    if datetime.fromisoformat(row["expires_at"]) < datetime.now():
+        return None
+    return get_user_by_id(row["user_id"])
+
+
+def delete_session(token: str) -> None:
+    with get_db() as conn:
+        conn.execute("DELETE FROM sessions WHERE token=?", (token,))

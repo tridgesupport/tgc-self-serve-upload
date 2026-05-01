@@ -13,10 +13,10 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.background import BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -45,6 +45,9 @@ from instagram_scraper import scrape_instagram
 from database import (
     init_db, upsert_vendor, list_vendors, get_vendor, patch_vendor,
     set_last_pulled, update_webhook_ids, get_webhook_ids,
+    create_user, get_user_by_email, get_user_by_id,
+    create_session, get_session_user, delete_session,
+    hash_password, verify_password,
 )
 from scraper import detect_and_scrape, scrape_shopify, scrape_shopify_authenticated, clean_html
 from supabase_client import (
@@ -947,6 +950,17 @@ async def catalogue_endpoint(
     return {"count": len(results), "products": results}
 
 
+class AuthRegisterRequest(BaseModel):
+    email: str
+    password: str
+    vendor_id: Optional[str] = None
+
+
+class AuthLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
 class CatalogueUpdateRequest(BaseModel):
     """Partial update for a catalogue product — all fields optional."""
     title:                     Optional[str] = None
@@ -984,6 +998,184 @@ async def patch_catalogue_product(product_id: str, req: CatalogueUpdateRequest):
     if not updated:
         raise HTTPException(status_code=404, detail="Product not found.")
     return updated
+
+
+# ---------------------------------------------------------------------------
+# Auth endpoints
+# ---------------------------------------------------------------------------
+
+ADMIN_EMAIL    = os.environ.get("ADMIN_EMAIL", "admin@thegiftcollective.in")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+
+
+def _current_user(request: Request) -> Optional[dict]:
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return get_session_user(auth[7:])
+    return None
+
+
+@app.post("/api/auth/register", status_code=201)
+async def auth_register(req: AuthRegisterRequest):
+    """Register a new vendor account. vendor_id must match an existing vendor."""
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    if get_user_by_email(req.email):
+        raise HTTPException(status_code=409, detail="An account with this email already exists.")
+    if req.vendor_id:
+        vendor = await asyncio.get_event_loop().run_in_executor(_executor, get_vendor, req.vendor_id)
+        if not vendor:
+            raise HTTPException(status_code=404, detail="Vendor ID not found. Complete registration first.")
+    try:
+        user = create_user(req.email, req.password, role="vendor", vendor_id=req.vendor_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    token = create_session(user["id"])
+    return {"token": token, "user": {"id": user["id"], "email": user["email"], "role": "vendor", "vendor_id": user["vendor_id"]}}
+
+
+@app.post("/api/auth/login")
+async def auth_login(req: AuthLoginRequest):
+    """Login with email + password. Admin credentials checked against env vars."""
+    # Admin check first
+    if req.email.lower().strip() == ADMIN_EMAIL.lower() and ADMIN_PASSWORD:
+        if not verify_password(req.password, ADMIN_PASSWORD) and req.password != ADMIN_PASSWORD:
+            raise HTTPException(status_code=401, detail="Invalid credentials.")
+        # Create or reuse a pseudo admin session
+        admin_user = get_user_by_email(req.email)
+        if not admin_user:
+            try:
+                admin_user = create_user(req.email, req.password, role="admin")
+            except Exception:
+                admin_user = get_user_by_email(req.email)
+        token = create_session(admin_user["id"])
+        return {"token": token, "user": {"id": admin_user["id"], "email": admin_user["email"], "role": "admin", "vendor_id": None}}
+
+    # Vendor login
+    user = get_user_by_email(req.email)
+    if not user or not verify_password(req.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+    token = create_session(user["id"])
+    return {"token": token, "user": {"id": user["id"], "email": user["email"], "role": user["role"], "vendor_id": user["vendor_id"]}}
+
+
+@app.post("/api/auth/logout")
+async def auth_logout(request: Request):
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        delete_session(auth[7:])
+    return {"ok": True}
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    user = _current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    return {"id": user["id"], "email": user["email"], "role": user["role"], "vendor_id": user.get("vendor_id")}
+
+
+@app.get("/api/vendors/{vendor_id}")
+async def get_vendor_endpoint(vendor_id: str):
+    """Fetch a single vendor by ID (used by vendor dashboard)."""
+    vendor = await asyncio.get_event_loop().run_in_executor(_executor, get_vendor, vendor_id)
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found.")
+    return vendor
+
+
+# ---------------------------------------------------------------------------
+# Pages upload / download
+# ---------------------------------------------------------------------------
+
+@app.get("/api/pages/{slug}/download")
+async def download_page(slug: str):
+    """Download the current page content as an HTML file."""
+    pages = _load_pages()
+    if slug not in pages:
+        raise HTTPException(status_code=404, detail="Page not found.")
+    page = pages[slug]
+    html = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>{page['title']}</title></head>
+<body>
+{page['content']}
+</body></html>"""
+    return Response(
+        content=html,
+        media_type="text/html",
+        headers={"Content-Disposition": f'attachment; filename="{slug}.html"'},
+    )
+
+
+@app.post("/api/pages/{slug}/upload")
+async def upload_page(slug: str, file: UploadFile = File(...)):
+    """Upload a .docx or .pdf and replace the page content."""
+    pages = _load_pages()
+    if slug not in pages:
+        raise HTTPException(status_code=404, detail="Page not found.")
+
+    fname = (file.filename or "").lower()
+    content_bytes = await file.read()
+
+    if fname.endswith(".docx"):
+        html = _docx_to_html(content_bytes)
+    elif fname.endswith(".pdf"):
+        html = _pdf_to_html(content_bytes)
+    elif fname.endswith(".html") or fname.endswith(".htm"):
+        html = content_bytes.decode("utf-8", errors="replace")
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type. Upload .docx, .pdf, or .html")
+
+    pages[slug]["content"] = html
+    _save_pages(pages)
+    # Bust page cache keys by returning new content
+    return {"slug": slug, "title": pages[slug]["title"], "content": html}
+
+
+def _docx_to_html(data: bytes) -> str:
+    try:
+        import io
+        from docx import Document
+        from docx.oxml.ns import qn
+        doc = Document(io.BytesIO(data))
+        parts = []
+        for para in doc.paragraphs:
+            text = para.text.strip()
+            if not text:
+                continue
+            style = para.style.name if para.style else ""
+            if "Heading 1" in style:
+                parts.append(f"<h2>{text}</h2>")
+            elif "Heading 2" in style:
+                parts.append(f"<h3>{text}</h3>")
+            elif "Heading 3" in style or "Heading 4" in style:
+                parts.append(f"<h4>{text}</h4>")
+            else:
+                parts.append(f"<p>{text}</p>")
+        return "\n".join(parts) or "<p>No content found in document.</p>"
+    except ImportError:
+        raise HTTPException(status_code=503, detail="python-docx not installed on this server.")
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Failed to parse .docx: {e}")
+
+
+def _pdf_to_html(data: bytes) -> str:
+    try:
+        import io
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(data))
+        parts = []
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            for line in text.splitlines():
+                line = line.strip()
+                if line:
+                    parts.append(f"<p>{line}</p>")
+        return "\n".join(parts) or "<p>No text found in PDF.</p>"
+    except ImportError:
+        raise HTTPException(status_code=503, detail="pypdf not installed on this server.")
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Failed to parse .pdf: {e}")
 
 
 # ---------------------------------------------------------------------------
