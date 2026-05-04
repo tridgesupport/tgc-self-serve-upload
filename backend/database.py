@@ -118,7 +118,6 @@ def init_db():
                 notes                 TEXT,
                 webhook_ids           TEXT DEFAULT '{}'
             );
-        """)
             CREATE TABLE IF NOT EXISTS users (
                 id            TEXT PRIMARY KEY,
                 email         TEXT UNIQUE NOT NULL,
