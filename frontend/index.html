@@ -3385,10 +3385,16 @@ function VendorRegistration() {
   );
 }
 
-// Mount function — called after auth so we can pre-fill from localStorage first
+// Mount (or re-mount) the vendor registration React tree.
+// Auto-called once Babel finishes compiling; also called after auth pre-fill.
+let _vendorRegRoot = null;
 window.mountVendorReg = function() {
-  ReactDOM.createRoot(document.getElementById('vendor-reg-root')).render(<VendorRegistration />);
+  if (!_vendorRegRoot) {
+    _vendorRegRoot = ReactDOM.createRoot(document.getElementById('vendor-reg-root'));
+  }
+  _vendorRegRoot.render(<VendorRegistration />);
 };
+window.mountVendorReg(); // initial mount — runs while auth gate is visible
 </script>
 
 <!-- ══════════ Page Modal ══════════ -->
@@ -3875,10 +3881,8 @@ function showGate() {
 function hideGate() {
   document.getElementById('auth-gate-page').style.display = 'none';
   document.getElementById('stickyTop').style.display      = '';
-  // Only show active tab panel
-  document.querySelectorAll('.tab-panel').forEach(p => {
-    p.style.display = p.classList.contains('active') ? '' : 'none';
-  });
+  // Clear all inline display overrides — CSS .tab-panel / .tab-panel.active handles visibility
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = '');
 }
 
 function showGateTab(tab) {
